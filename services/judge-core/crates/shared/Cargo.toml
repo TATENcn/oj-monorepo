@@ -1,0 +1,5 @@
+[package]
+name = "shared"
+edition.workspace = true
+
+[dependencies]
