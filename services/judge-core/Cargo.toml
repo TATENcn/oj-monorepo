@@ -10,3 +10,5 @@ tokio = "1.52.3"
 postcard = "1.1.3"
 serde = { version = "1.0.228", features = ["derive"] }
 thiserror = "2.0.18"
+
+shared = { path = "./crates/shared" }
