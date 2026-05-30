@@ -3,6 +3,10 @@
 version = 4
 
 [[package]]
+name = "agent"
+version = "0.0.0"
+
+[[package]]
 name = "atomic-polyfill"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
