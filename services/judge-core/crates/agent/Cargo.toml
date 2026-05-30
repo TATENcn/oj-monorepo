@@ -3,7 +3,7 @@ name = "agent"
 edition.workspace = true
 
 [dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal", "fs", "process", "time"] }
 tokio-util = "0.7"
 futures = "0.3"
 shared = { workspace = true }
