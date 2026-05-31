@@ -35,6 +35,8 @@ pub enum VerdictError {
     Io(#[from] io::Error),
     #[error("cancelled")]
     Cancelled,
+    #[error(transparent)]
+    Cgroup(#[from] cgroups_rs::fs::error::Error),
 }
 
 pub async fn handle<T: Verdict + 'static>(id: u64, task: VerdictTask) -> VerdictTaskResult {
