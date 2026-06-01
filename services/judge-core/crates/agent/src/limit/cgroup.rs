@@ -20,7 +20,16 @@ impl Drop for CgroupGuard {
 impl CgroupGuard {
     pub fn new(id: &str, limit: &ResourcesLimit) -> Result<Self, CgroupError> {
         let hier = hierarchies::V2::new();
+
+        // Convert ms to us for cgroup v2 cpu.max
+        let cpu_quota_us = (limit.cpu_time_ms * 1000) as i64;
+        let cpu_period_us = limit.wall_time_ms * 1000;
+
         let cgroup = CgroupBuilder::new(id)
+            .cpu()
+            .quota(cpu_quota_us)
+            .period(cpu_period_us)
+            .done()
             .memory()
             .memory_hard_limit(limit.memory_bytes as i64)
             .done()
