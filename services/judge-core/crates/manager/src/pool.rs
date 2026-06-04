@@ -114,7 +114,7 @@ impl AgentPool {
         let task_queue = Arc::new(Mutex::new(VecDeque::new()));
 
         let pool = Self {
-            config,
+            config: config.clone(),
             agents: agents.clone(),
             task_queue: task_queue.clone(),
             dispatch_tx: dispatch_tx.clone(),
@@ -122,7 +122,7 @@ impl AgentPool {
             next_frame_id: AtomicU32::new(1),
         };
 
-        tokio::spawn(dispatch_loop(agents.clone(), task_queue.clone(), dispatch_rx, dispatch_tx.clone()));
+        tokio::spawn(dispatch_loop(agents.clone(), task_queue.clone(), dispatch_rx, dispatch_tx.clone(), config));
 
         tokio::spawn(health_check_loop(
             agents.clone(),
@@ -237,6 +237,7 @@ async fn dispatch_loop(
     queue: Arc<Mutex<VecDeque<QueuedTask>>>,
     mut rx: mpsc::Receiver<()>,
     dispatch_tx: mpsc::Sender<()>,
+    config: PoolConfig,
 ) {
     while rx.recv().await.is_some() {
         let task = {
@@ -257,15 +258,15 @@ async fn dispatch_loop(
                 .cloned()
         };
 
+        let config = config.clone();
         let Some(agent) = agent else {
             warn!(frame_id = task.frame_id, "no healthy agent available");
-            if task.retries >= 3 {
+            if task.retries >= config.max_retries {
                 let _ = task.result_tx.send(Err(PoolError::AgentUnavailable));
             } else {
                 task.retries += 1;
                 let mut q = queue.lock().await;
                 q.push_front(task);
-                drop(q);
 
                 tokio::spawn({
                     let tx = dispatch_tx.clone();
@@ -290,7 +291,7 @@ async fn dispatch_loop(
         let dispatch_tx_clone = dispatch_tx.clone();
 
         tokio::spawn(async move {
-            let result = execute_task(&agent, task.frame_id, &task.task).await;
+            let result = execute_task(&agent, task.frame_id, &task.task, &config).await;
             agent.active_tasks.fetch_sub(1, Ordering::Relaxed);
 
             match result {
@@ -301,11 +302,10 @@ async fn dispatch_loop(
                 Err(e) => {
                     warn!(frame_id = task.frame_id, error = %e, retries = task.retries, "task failed");
 
-                    if task.retries < 3 {
+                    if task.retries < config.max_retries {
                         task.retries += 1;
                         let mut q = queue_clone.lock().await;
                         q.push_back(task);
-                        drop(q);
                         dispatch_tx_clone.send(()).await.ok();
                     } else {
                         let _ = task.result_tx.send(Err(PoolError::MaxRetriesExceeded { retries: task.retries }));
@@ -317,7 +317,7 @@ async fn dispatch_loop(
 }
 
 #[tracing::instrument(skip(agent, task), fields(frame_id))]
-async fn execute_task(agent: &AgentHandle, frame_id: FrameId, task: &VerdictTask) -> Result<VerdictTaskResult, PoolError> {
+async fn execute_task(agent: &AgentHandle, frame_id: FrameId, task: &VerdictTask, config: &PoolConfig) -> Result<VerdictTaskResult, PoolError> {
     let start = std::time::Instant::now();
 
     debug!(socket = %agent.socket_path.display(), "connecting to agent");
@@ -329,9 +329,9 @@ async fn execute_task(agent: &AgentHandle, frame_id: FrameId, task: &VerdictTask
     protocol::send(&mut stream, frame_id, task).await?;
 
     debug!("waiting for response");
-    let (_, result): (FrameId, VerdictTaskResult) = timeout(Duration::from_secs(45), protocol::receive::<VerdictTaskResult, _>(&mut stream))
+    let (_, result): (FrameId, VerdictTaskResult) = timeout(config.task_timeout, protocol::receive::<VerdictTaskResult, _>(&mut stream))
         .await
-        .map_err(|_| PoolError::TaskTimeout(45))?
+        .map_err(|_| PoolError::TaskTimeout(config.task_timeout.as_secs()))?
         .map_err(PoolError::Protocol)?
         .ok_or(PoolError::Protocol(ProtocolError::InvalidHeartbeatResponse))?;
 
