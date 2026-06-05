@@ -1,9 +1,11 @@
 use std::{
     collections::VecDeque,
     path::PathBuf,
-    sync::Arc,
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
-    time::Duration,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+    },
+    time::{Duration, Instant},
 };
 
 use shared::{
@@ -66,27 +68,14 @@ pub struct PoolMetrics {
     pub active_tasks: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AgentHandle {
     pub id: String,
     pub socket_path: PathBuf,
-    pub active_tasks: AtomicU32,
-    pub healthy: AtomicBool,
-    pub consecutive_failures: AtomicU32,
-    pub created_at: std::time::Instant,
-}
-
-impl Clone for AgentHandle {
-    fn clone(&self) -> Self {
-        Self {
-            id: self.id.clone(),
-            socket_path: self.socket_path.clone(),
-            active_tasks: AtomicU32::new(self.active_tasks.load(Ordering::Relaxed)),
-            healthy: AtomicBool::new(self.healthy.load(Ordering::Relaxed)),
-            consecutive_failures: AtomicU32::new(self.consecutive_failures.load(Ordering::Relaxed)),
-            created_at: self.created_at,
-        }
-    }
+    pub active_tasks: Arc<AtomicU32>,
+    pub healthy: Arc<AtomicBool>,
+    pub consecutive_failures: Arc<AtomicU32>,
+    pub created_at: Instant,
 }
 
 #[derive(Debug)]
@@ -181,7 +170,7 @@ impl AgentPool {
         info!(count = ids.len(), "discovered existing agents");
 
         for id in ids {
-            let socket_path = std::path::PathBuf::from("/run/judge-core/agents").join(&id).join("agent.sock");
+            let socket_path = PathBuf::from("/run/judge-core/agents").join(&id).join("agent.sock");
             self.add_agent(id, socket_path).await;
         }
 
@@ -199,10 +188,10 @@ impl AgentPool {
         agents.push(AgentHandle {
             id: id.clone(),
             socket_path,
-            active_tasks: AtomicU32::new(0),
-            healthy: AtomicBool::new(true),
-            consecutive_failures: AtomicU32::new(0),
-            created_at: std::time::Instant::now(),
+            active_tasks: Arc::new(AtomicU32::new(0)),
+            healthy: Arc::new(AtomicBool::new(true)),
+            consecutive_failures: Arc::new(AtomicU32::new(0)),
+            created_at: Instant::now(),
         });
 
         info!(agent_id = %id, agent_count = agents.len(), "agent added to pool");
@@ -318,7 +307,7 @@ async fn dispatch_loop(
 
 #[tracing::instrument(skip(agent, task), fields(frame_id))]
 async fn execute_task(agent: &AgentHandle, frame_id: FrameId, task: &VerdictTask, config: &PoolConfig) -> Result<VerdictTaskResult, PoolError> {
-    let start = std::time::Instant::now();
+    let start = Instant::now();
 
     debug!(socket = %agent.socket_path.display(), "connecting to agent");
     let mut stream = timeout(Duration::from_secs(5), UnixStream::connect(&agent.socket_path))
