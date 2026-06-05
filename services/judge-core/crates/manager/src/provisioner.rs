@@ -115,7 +115,7 @@ impl ContainerdProvisioner {
 
         let req = KillRequest {
             container_id: id.to_string(),
-            signal: 9,
+            signal: libc::SIGKILL as u32,
             ..Default::default()
         };
         let req = with_namespace!(req, NAMESPACE);

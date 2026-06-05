@@ -921,6 +921,7 @@ name = "manager"
 version = "0.0.0"
 dependencies = [
  "containerd-client",
+ "libc",
  "oci-spec",
  "prost-types",
  "serde_json",
