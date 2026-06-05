@@ -322,7 +322,7 @@ async fn execute_task(agent: &AgentHandle, frame_id: FrameId, task: &VerdictTask
         .await
         .map_err(|_| PoolError::TaskTimeout(config.task_timeout.as_secs()))?
         .map_err(PoolError::Protocol)?
-        .ok_or(PoolError::Protocol(ProtocolError::InvalidHeartbeatResponse))?;
+        .ok_or(PoolError::Protocol(ProtocolError::UnexpectedHeartbeat))?;
 
     let duration = start.elapsed();
     info!(frame_id, duration = ?duration, "task executed successfully");

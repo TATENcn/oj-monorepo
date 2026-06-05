@@ -55,4 +55,6 @@ pub enum ProtocolError {
     Io(#[from] io::Error),
     #[error("invalid heartbeat response")]
     InvalidHeartbeatResponse,
+    #[error("received unexpected heartbeat frame")]
+    UnexpectedHeartbeat,
 }
