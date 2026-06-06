@@ -38,6 +38,8 @@ impl CgroupGuard {
             .done()
             .build(Box::new(hier))?;
 
+        cgroup.set_cgroup_type("threaded")?;
+
         debug!(
             cgroup_id = %id,
             memory_limit = limit.memory_bytes,
