@@ -312,8 +312,8 @@ impl ContainerdProvisioner {
 
     fn build_agent_spec(&self, socket_path: &Path) -> Result<Any, ProvisionError> {
         use oci_spec::runtime::{
-            LinuxBuilder, LinuxDeviceBuilder, LinuxDeviceCgroupBuilder, LinuxDeviceType, LinuxNamespaceBuilder, LinuxNamespaceType, LinuxResourcesBuilder,
-            MountBuilder, ProcessBuilder, RootBuilder, SpecBuilder,
+            LinuxBuilder, LinuxDeviceBuilder, LinuxDeviceCgroupBuilder, LinuxDeviceType, LinuxIdMapping, LinuxNamespaceBuilder, LinuxNamespaceType,
+            LinuxResourcesBuilder, MountBuilder, ProcessBuilder, RootBuilder, SpecBuilder,
         };
 
         let socket_dir = socket_path.parent().unwrap().to_str().expect("socket path is not valid utf-8");
@@ -352,15 +352,41 @@ impl ContainerdProvisioner {
                     .typ("bind")
                     .options(vec!["rbind".to_string(), "rw".to_string()])
                     .build()?,
+                MountBuilder::default()
+                    .destination("/work")
+                    .source("tmpfs")
+                    .typ("tmpfs")
+                    .options(vec!["nosuid".to_string(), "nodev".to_string(), "mode=755".to_string(), "size=256m".to_string()])
+                    .build()?,
+                MountBuilder::default()
+                    .destination("/tmp")
+                    .source("tmpfs")
+                    .typ("tmpfs")
+                    .options(vec!["nosuid".to_string(), "nodev".to_string(), "mode=1777".to_string(), "size=64m".to_string()])
+                    .build()?,
+                MountBuilder::default()
+                    .destination("/sys/fs/cgroup")
+                    .source("cgroup2")
+                    .typ("cgroup2")
+                    .options(vec!["nosuid".to_string(), "noexec".to_string(), "nodev".to_string(), "rw".to_string()])
+                    .build()?,
             ])
             .linux(
                 LinuxBuilder::default()
+                    .uid_mappings(vec![serde_json::from_value::<LinuxIdMapping>(
+                        serde_json::json!({"containerID": 0, "hostID": 0, "size": 65536}),
+                    )?])
+                    .gid_mappings(vec![serde_json::from_value::<LinuxIdMapping>(
+                        serde_json::json!({"containerID": 0, "hostID": 0, "size": 65536}),
+                    )?])
                     .namespaces(vec![
                         LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::Pid).build()?,
                         LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::Ipc).build()?,
                         LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::Uts).build()?,
                         LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::Mount).build()?,
                         LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::Network).build()?,
+                        LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::User).build()?,
+                        LinuxNamespaceBuilder::default().typ(LinuxNamespaceType::Cgroup).build()?,
                     ])
                     .devices(vec![
                         LinuxDeviceBuilder::default()
