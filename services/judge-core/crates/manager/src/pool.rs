@@ -15,7 +15,7 @@ use shared::{
 use tokio::{
     net::UnixStream,
     sync::{Mutex, RwLock, Semaphore, oneshot},
-    time::timeout,
+    time::{sleep, timeout},
 };
 use tracing::{debug, error, info, warn};
 
@@ -251,6 +251,11 @@ async fn dispatch_loop(agents: Arc<RwLock<Vec<AgentHandle>>>, queue: Arc<Mutex<V
                 task.retries += 1;
                 let mut q = queue.lock().await;
                 q.push_front(task);
+                let permits = permits.clone();
+                tokio::spawn(async move {
+                    sleep(Duration::from_secs(1)).await;
+                    permits.add_permits(1);
+                });
             }
             continue;
         };
