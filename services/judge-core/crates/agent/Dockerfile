@@ -27,13 +27,10 @@ FROM alpine:3.23.4
 RUN apk add --no-cache libseccomp g++ && \
     rm -rf /var/cache/apk/*
 
-RUN addgroup -g 1000 -S judge && \
-    adduser -u 1000 -S judge -G judge && \
-    mkdir -p /work /run/judge-core/agents && \
-    chown -R judge:judge /work /run/judge-core
+RUN mkdir -p /work /run/judge-core/agents
 
 COPY --from=builder /build/target/release/agent /usr/local/bin/agent
 
-USER judge
+USER root
 
 ENTRYPOINT ["/usr/local/bin/agent"]
