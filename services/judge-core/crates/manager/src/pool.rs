@@ -252,20 +252,17 @@ async fn dispatch_loop(
     config: PoolConfig,
 ) {
     loop {
-        let task = {
-            let mut q = queue.lock().await;
-            q.pop_front()
-        };
+        let mut task;
+        let agent;
 
-        let mut task = match task {
-            Some(t) => t,
-            None => {
+        {
+            let mut q = queue.lock().await;
+            if q.is_empty() {
+                drop(q);
                 task_signal_rx.recv().await.expect("task_signal sender should not be dropped");
                 continue;
             }
-        };
 
-        let agent = loop {
             let agents_guard = agents.read().await;
             if let Some(a) = agents_guard
                 .iter()
@@ -273,15 +270,16 @@ async fn dispatch_loop(
                 .min_by_key(|a| a.active_tasks.load(Ordering::Relaxed))
                 .cloned()
             {
-                break a;
+                agent = a;
+                task = q.pop_front().unwrap();
+            } else {
+                tokio::select! {
+                    _ = agent_available.notified() => {},
+                    _ = task_signal_rx.recv() => {},
+                }
+                continue;
             }
-            drop(agents_guard);
-
-            tokio::select! {
-                _ = agent_available.notified() => {},
-                _ = task_signal_rx.recv() => {},
-            }
-        };
+        }
 
         agent.active_tasks.fetch_add(1, Ordering::Relaxed);
         debug!(
