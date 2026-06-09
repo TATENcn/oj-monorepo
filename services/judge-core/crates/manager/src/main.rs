@@ -42,9 +42,10 @@ async fn main() -> Result<(), ManagerError> {
     pool.discover_agents().await?;
     info!(metrics = ?pool.metrics().await, "agents discovered");
 
+    // WARNING: a huge number of agents may lead to OOM or excessive CPU usage
     pool.clone().start_autoscaler(ScalerConfig {
         min_agents: 2,
-        max_agents: 10,
+        max_agents: 5,
         scale_down_utilization_pct: 0.3,
         scale_up_cooldown_secs: 5,
         scale_down_cooldown_secs: 300,
