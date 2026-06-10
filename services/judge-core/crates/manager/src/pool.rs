@@ -15,6 +15,7 @@ use shared::{
 use tokio::{
     net::UnixStream,
     sync::{Mutex, Notify, RwLock, mpsc, oneshot},
+    task::JoinSet,
     time::{interval, timeout},
 };
 use tracing::{debug, error, info, warn};
@@ -400,31 +401,39 @@ async fn health_check_loop(agents: Arc<RwLock<Vec<AgentHandle>>>, agent_availabl
             guard.clone()
         };
 
+        let mut join_set = JoinSet::new();
         for agent in snapshot {
-            let result = timeout(Duration::from_secs(2), async {
-                let mut stream = UnixStream::connect(&agent.socket_path).await?;
-                protocol::send_heartbeat(&mut stream).await?;
-                Ok::<(), PoolError>(())
-            })
-            .await;
+            join_set.spawn(async move {
+                let result = timeout(Duration::from_secs(2), async {
+                    let mut stream = UnixStream::connect(&agent.socket_path).await?;
+                    protocol::send_heartbeat(&mut stream).await?;
+                    Ok::<(), PoolError>(())
+                })
+                .await;
 
-            let healthy = match result {
-                Ok(Ok(())) => {
-                    agent.consecutive_failures.store(0, Ordering::Relaxed);
-                    true
-                }
-                Ok(Err(e)) => {
-                    let failures = agent.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
-                    warn!(agent_id = %agent.id, failures, error = %e, "health check failed");
-                    failures < failure_threshold
-                }
-                Err(_) => {
-                    let failures = agent.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
-                    warn!(agent_id = %agent.id, failures, "health check timed out");
-                    failures < failure_threshold
-                }
-            };
+                let healthy = match result {
+                    Ok(Ok(())) => {
+                        agent.consecutive_failures.store(0, Ordering::Relaxed);
+                        true
+                    }
+                    Ok(Err(e)) => {
+                        let failures = agent.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
+                        warn!(agent_id = %agent.id, failures, error = %e, "health check failed");
+                        failures < failure_threshold
+                    }
+                    Err(_) => {
+                        let failures = agent.consecutive_failures.fetch_add(1, Ordering::Relaxed) + 1;
+                        warn!(agent_id = %agent.id, failures, "health check timed out");
+                        failures < failure_threshold
+                    }
+                };
 
+                (agent, healthy)
+            });
+        }
+
+        while let Some(result) = join_set.join_next().await {
+            let (agent, healthy) = result.expect("health check task panicked");
             let was_healthy = agent.healthy.load(Ordering::Relaxed);
             agent.healthy.store(healthy, Ordering::Relaxed);
 
@@ -450,26 +459,36 @@ async fn drain_loop(agents: Arc<RwLock<Vec<AgentHandle>>>, provisioner: Arc<Cont
             guard.clone()
         };
 
-        for agent in snapshot {
-            let should_destroy = if !agent.healthy.load(Ordering::Relaxed) {
-                true
-            } else if agent.shutting_down.load(Ordering::Relaxed) && agent.active_tasks.load(Ordering::Relaxed) == 0 {
-                true
-            } else {
-                false
-            };
+        let candidates: Vec<AgentHandle> = snapshot
+            .into_iter()
+            .filter(|agent| {
+                !agent.healthy.load(Ordering::Relaxed) || (agent.shutting_down.load(Ordering::Relaxed) && agent.active_tasks.load(Ordering::Relaxed) == 0)
+            })
+            .collect();
 
-            if should_destroy {
-                let mut guard = agents.write().await;
-                let pos = guard.iter().position(|a| a.id == agent.id).unwrap();
-                guard.remove(pos);
-                drop(guard);
+        if candidates.is_empty() {
+            continue;
+        }
 
-                if let Err(e) = provisioner.destroy(&agent.id).await {
-                    error!(agent_id = %agent.id, error = %e, "failed to destroy agent in drain loop");
-                } else {
-                    info!(agent_id = %agent.id, "agent destroyed in drain loop");
+        {
+            let mut guard = agents.write().await;
+            guard.retain(|a| !candidates.iter().any(|c| c.id == a.id));
+        }
+
+        let mut join_set = JoinSet::new();
+        for agent in candidates {
+            let provisioner = provisioner.clone();
+            join_set.spawn(async move {
+                match provisioner.destroy(&agent.id).await {
+                    Err(e) => error!(agent_id = %agent.id, error = %e, "failed to destroy agent in drain loop"),
+                    Ok(()) => info!(agent_id = %agent.id, "agent destroyed in drain loop"),
                 }
+            });
+        }
+
+        while let Some(result) = join_set.join_next().await {
+            if let Err(e) = result {
+                error!(error = %e, "drain task panicked");
             }
         }
     }
