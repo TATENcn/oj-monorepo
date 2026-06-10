@@ -5,7 +5,7 @@ use containerd_client::{
     services::v1::version_client,
     tonic::transport::{self, Channel},
 };
-use tracing::{error, info};
+use tracing::info;
 
 use manager::{
     pool::{AgentPool, PoolConfig, PoolError},
@@ -60,18 +60,19 @@ async fn main() -> Result<(), ManagerError> {
     let app = router::create_router(pool.clone());
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
     info!("HTTP server listening on 0.0.0.0:8000");
-
-    tokio::spawn(async move {
-        if let Err(e) = axum::serve(listener, app).await {
-            error!(error = %e, "HTTP server error");
-        }
-    });
-
     info!("manager ready");
 
-    tokio::signal::ctrl_c().await?;
-    info!("shutting down");
+    axum::serve(listener, app)
+        .with_graceful_shutdown(async {
+            tokio::signal::ctrl_c().await.expect("failed to listen for ctrl_c");
+            info!("shutdown signal received, stopping HTTP server");
+        })
+        .await?;
 
+    info!("draining task pool");
+    pool.shutdown(Duration::from_secs(60)).await?;
+
+    info!("manager shut down");
     Ok(())
 }
 
