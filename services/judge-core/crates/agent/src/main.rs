@@ -5,7 +5,8 @@ use shared::{
 };
 use tokio::net::UnixListener;
 use tokio::task::JoinSet;
-use tracing::{debug, error, info};
+use tokio::time::{self, Duration};
+use tracing::{debug, error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), AgentError> {
@@ -54,10 +55,19 @@ async fn main() -> Result<(), AgentError> {
         });
     }
 
-    while let Some(result) = tasks.join_next().await {
-        if let Err(e) = result {
-            error!(error = %e, "task panicked during drain");
+    let drain_result = time::timeout(Duration::from_secs(60), async {
+        while let Some(result) = tasks.join_next().await {
+            if let Err(e) = result {
+                error!(error = %e, "task panicked during drain");
+            }
         }
+    })
+    .await;
+
+    if drain_result.is_err() {
+        let remaining = tasks.len();
+        warn!(remaining, "drain timeout reached, aborting remaining tasks");
+        tasks.shutdown().await;
     }
 
     info!("agent shut down");
