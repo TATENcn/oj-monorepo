@@ -24,7 +24,7 @@ RUN cargo build --release --bin agent
 FROM alpine:3.23.4
 
 # `g++` installed
-RUN apk add --no-cache libseccomp g++ && \
+RUN apk add --no-cache libseccomp g++ ccache && \
     rm -rf /var/cache/apk/*
 
 RUN mkdir -p /work /run/judge-core/agents

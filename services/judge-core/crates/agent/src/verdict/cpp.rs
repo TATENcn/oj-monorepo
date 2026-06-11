@@ -42,8 +42,9 @@ impl Verdict for Cpp {
 
         trace!(source = truncate_str(source, 1024), "source content");
 
-        let mut cmd = process::Command::new("g++");
-        cmd.arg("-std=c++23")
+        let mut cmd = process::Command::new("ccache");
+        cmd.arg("g++")
+            .arg("-std=c++23")
             .arg("-w")
             .arg(source_path.display().to_string())
             .arg("-o")
