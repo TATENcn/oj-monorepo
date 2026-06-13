@@ -5,7 +5,7 @@ use containerd_client::tonic::Request;
 use containerd_client::{
     services::v1::{
         Container, CreateContainerRequest, CreateTaskRequest, DeleteContainerRequest, DeleteTaskRequest, GetImageRequest, KillRequest, ListContainersRequest,
-        ReadContentRequest, StartRequest,
+        ReadContentRequest, StartRequest, WaitRequest,
         container::Runtime,
         containers_client::ContainersClient,
         content_client::ContentClient,
@@ -20,9 +20,9 @@ use oci_spec::image::{ImageConfiguration, ImageIndex, ImageManifest};
 use prost_types::Any;
 use sha2::{Digest, Sha256};
 use tokio::sync::OnceCell;
-use tokio::time::{Duration, sleep};
+use tokio::time::{Duration, sleep, timeout};
 use tokio::{fs, io};
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 const NAMESPACE: &str = "judge-core";
@@ -168,11 +168,24 @@ impl ContainerdProvisioner {
             debug!(agent_id = id, error = %e, "failed to kill task (may already be stopped)");
         }
 
+        // wait for the task to exit before deleting it
+        let wait_req = WaitRequest {
+            container_id: id.to_string(),
+            exec_id: String::new(),
+        };
+        let wait_req = with_namespace!(wait_req, NAMESPACE);
+        match timeout(Duration::from_secs(90), tasks_client.wait(wait_req)).await {
+            Ok(Ok(_)) => debug!(agent_id = id, "task exited"),
+            Ok(Err(e)) => warn!(agent_id = id, error = %e, "wait for task exit returned error"),
+            Err(_) => warn!(agent_id = id, "timeout waiting for task exit, attempting delete anyway"),
+        }
+
         let req = DeleteTaskRequest { container_id: id.to_string() };
         let req = with_namespace!(req, NAMESPACE);
 
         if let Err(e) = tasks_client.delete(req).await {
-            debug!(agent_id = id, error = %e, "failed to delete task (may already be deleted)");
+            warn!(agent_id = id, error = %e, "failed to delete task, container will be retained for retry");
+            return Err(ProvisionError::Rpc(e));
         }
 
         let mut containers_client = ContainersClient::new(self.channel.clone());
