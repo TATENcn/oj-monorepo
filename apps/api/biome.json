@@ -1,0 +1,10 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.0/schema.json",
+	"extends": "//",
+	"files": {
+		"includes": ["!src/modules/db/auth.schema.ts"]
+	},
+	"formatter": {
+		"lineWidth": 160
+	}
+}
