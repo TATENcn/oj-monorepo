@@ -1,4 +1,8 @@
 {
 	// NOTE: Do not delete it, as it will tell rust-analyzer to scan this Rust project
-	"rust-analyzer.linkedProjects": ["services/judge-core/Cargo.toml"]
+	"rust-analyzer.linkedProjects": ["services/judge-core/Cargo.toml"],
+
+	"editor.codeActionsOnSave": {
+		"source.organizeImports.biome": "explicit"
+	}
 }
