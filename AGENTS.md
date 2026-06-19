@@ -9,11 +9,16 @@ root/
       shared/            # models, binary protocol, socket helpers
       agent/             # in-container: compiles & sandboxes user code
       manager/           # on-host: HTTP API, containerd, agent pool
-  apps/                  # frontend apps
-  packages/              # shared frontend packages
+  apps/
+    api/                 # TypeScript backend
+    web/                 # frontend
+  packages/              # shared TypeScript packages
+    judge-core-sdk/      # HTTP client for judge-core API
+    models/              # shared TS types
+    utils/               # shared TS utilities
 ```
 
-- **Package manager**: `bun` (not npm). Run `bun install`.
+- **Package manager**: `bun` (not npm).
 - **Nx**: thin task runner; `nx build judge-core` delegates to `cargo build`.
 - All `cargo` commands must run inside `services/judge-core/`.
 
@@ -25,7 +30,7 @@ bun install
 
 # Rust (from services/judge-core/)
 cargo build --release
-cargo build --bin manager # Manager should run with root privileges
+cargo build --release --bin manager   # Manager must run with root privileges
 
 # Agent container image
 fish scripts/build-agent.fish   # docker build → `ctr image import`
@@ -36,35 +41,18 @@ fish scripts/build-agent.fish   # docker build → `ctr image import`
 **Prerequisite**: containerd daemon running, reachable at `/run/containerd/containerd.sock`, with a `judge-core` namespace. The agent image (`docker.io/library/judge-core:latest`) must already be imported.
 
 ```bash
-cargo build run --release --bin manager
+cargo build --release --bin manager
 sudo ./target/release/manager    # → HTTP on 0.0.0.0:8000
 ```
 
-No automated tests. Verify manually.
+All configuration is hardcoded in `crates/manager/src/main.rs`. No automated tests — verify manually.
 
-## Architecture essentials
+## Architecture
 
-### Manager ↔ agent protocol
-
-Unix domain sockets with **length-prefixed postcard** binary framing (`shared/src/protocol.rs`):
-
-- 4-byte LE `u32` length prefix
-- Length `0` = heartbeat → agent disconnects
-- Length `> 0` = postcard-encoded frame (`VerdictTask` or `VerdictTaskResult`)
-
-### Agent sandboxing
-
-Two layers per test case (`agent/src/limit/`):
-
-| Layer | Mechanism | Effect |
-|---|---|---|
-| seccomp | `libseccomp` BPF filter | Whitelist ~35 syscalls; fork/clone/socket blocked |
-| cgroups v2 | `cgroups-rs` | Memory limit enforced; CPU time tracked (limit checked post-execution) |
-
-### Execution flow
-
-`POST /task` → `pool.submit()` → dispatch to least-loaded agent → agent
-compiles (ccache + g++), runs cases in parallel batches of 8, compares output.
+- **Manager ↔ agent**: Unix domain sockets with length-prefixed binary framing.
+- **Sandboxing**: seccomp + cgroups v2 per test case.
+- **Execution**: `POST /task` → dispatch to least-loaded agent → compile → run test cases in parallel → return verdict.
+- **Auto-scaling**: pool scales between min/max agents based on queue load.
 
 ## Conventions
 
@@ -74,12 +62,14 @@ compiles (ccache + g++), runs cases in parallel batches of 8, compares output.
 
 | Concern | Path |
 |---|---|
-| HTTP API + JSON schemas | `crates/manager/src/router.rs`, `crates/shared/src/models/mod.rs` |
+| Manager entrypoint + config | `crates/manager/src/main.rs` |
+| HTTP API | `crates/manager/src/router.rs` |
 | Agent pool + dispatch | `crates/manager/src/pool.rs` |
-| Container CRUD + OCI spec | `crates/manager/src/provisioner.rs` |
+| Container CRUD | `crates/manager/src/provisioner.rs` |
 | Auto-scaling | `crates/manager/src/scaler.rs` |
-| Binary framing protocol | `crates/shared/src/protocol.rs` |
+| Binary protocol | `crates/shared/src/protocol.rs` |
+| Verdict orchestration | `crates/agent/src/verdict/mod.rs` |
 | C++ compile + execute | `crates/agent/src/verdict/cpp.rs` |
 | seccomp whitelist | `crates/agent/src/limit/seccomp.rs` |
-| cgroups v2 management | `crates/agent/src/limit/cgroup.rs` |
+| cgroups v2 | `crates/agent/src/limit/cgroup.rs` |
 | Agent Dockerfile | `crates/agent/Dockerfile` |
