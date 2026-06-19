@@ -11,7 +11,8 @@
 		"better-auth": "^1.6.19",
 		"drizzle-orm": "^1.0.0-beta.22",
 		"elysia": "^1.4.29",
-		"utils": "workspace:"
+		"utils": "workspace:",
+		"models": "workspace:"
 	},
 	"devDependencies": {
 		"drizzle-kit": "^1.0.0-beta.22"
