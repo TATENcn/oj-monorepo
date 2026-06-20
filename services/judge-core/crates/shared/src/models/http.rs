@@ -6,6 +6,16 @@ pub const METRICS_URL: &str = "/metricsz";
 pub const ACCEPTABLE_URL: &str = "/acceptablez";
 pub const TASK_URL: &str = "/task";
 
+pub const ERR_QUEUE_FULL: &str = "QUEUE_FULL";
+pub const ERR_MAX_RETRIES_EXCEEDED: &str = "MAX_RETRIES_EXCEEDED";
+pub const ERR_AGENT_UNAVAILABLE: &str = "AGENT_UNAVAILABLE";
+pub const ERR_SHUTTING_DOWN: &str = "SHUTTING_DOWN";
+pub const ERR_TASK_TIMEOUT: &str = "TASK_TIMEOUT";
+pub const ERR_CONNECTION_FAILED: &str = "CONNECTION_FAILED";
+pub const ERR_PROTOCOL_ERROR: &str = "PROTOCOL_ERROR";
+pub const ERR_PROVISION_ERROR: &str = "PROVISION_ERROR";
+pub const ERR_AGENT_BUSY: &str = "AGENT_BUSY";
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "status")]
 pub enum VerdictResponse {
@@ -36,21 +46,34 @@ impl From<VerdictTaskResult> for VerdictResponse {
     }
 }
 
-#[derive(Serialize)]
-pub struct ErrorBody {
-    pub code: &'static str,
+impl From<VerdictResponse> for VerdictTaskResult {
+    fn from(v: VerdictResponse) -> Self {
+        match v {
+            VerdictResponse::CompilationError { message } => VerdictTaskResult::CompilationError { message },
+            VerdictResponse::Accepted { usage } => VerdictTaskResult::Accepted { usage },
+            VerdictResponse::Killed { reason, stdout, stderr } => VerdictTaskResult::Killed { reason, stdout, stderr },
+            VerdictResponse::WrongAnswer { wrong_case, received, stderr } => VerdictTaskResult::WrongAnswer { wrong_case, received, stderr },
+            VerdictResponse::Internal { message } => VerdictTaskResult::Internal { message },
+            VerdictResponse::RuntimeError { stderr, exit_code } => VerdictTaskResult::RuntimeError { stderr, exit_code },
+        }
+    }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
+pub struct ErrorBody {
+    pub code: String,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: ErrorBody,
     pub message: String,
 }
 
-#[derive(Serialize)]
-pub struct SuccessResponse<T: Serialize> {
+#[derive(Serialize, Deserialize)]
+pub struct SuccessResponse<T> {
     pub data: T,
-    pub message: &'static str,
+    pub message: String,
 }
 
 #[derive(Serialize, Deserialize)]

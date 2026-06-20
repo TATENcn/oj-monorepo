@@ -43,6 +43,6 @@ async fn task_handler(Json(task): Json<VerdictTask>) -> Json<SuccessResponse<Ver
 
     Json(SuccessResponse {
         data: result.into(),
-        message: "task completed",
+        message: "task completed".to_string(),
     })
 }

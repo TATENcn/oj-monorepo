@@ -11,7 +11,10 @@ use tower_http::trace::TraceLayer;
 use tracing::error;
 
 use crate::pool::{AgentPool, PoolError};
-use shared::models::http::{AcceptablezResponse, ErrorBody, ErrorResponse, PoolMetrics, SuccessResponse, VerdictResponse};
+use shared::models::http::{
+    AcceptablezResponse, ERR_AGENT_BUSY, ERR_AGENT_UNAVAILABLE, ERR_CONNECTION_FAILED, ERR_MAX_RETRIES_EXCEEDED, ERR_PROTOCOL_ERROR, ERR_PROVISION_ERROR,
+    ERR_QUEUE_FULL, ERR_SHUTTING_DOWN, ERR_TASK_TIMEOUT, ErrorBody, ErrorResponse, PoolMetrics, SuccessResponse, VerdictResponse,
+};
 use shared::models::{
     VerdictTask,
     http::{ACCEPTABLE_URL, METRICS_URL, TASK_URL},
@@ -31,7 +34,7 @@ async fn metricsz_handler(State(pool): State<Arc<AgentPool>>) -> Result<Json<Suc
     let metrics = pool.metrics().await;
     Ok(Json(SuccessResponse {
         data: metrics,
-        message: "metrics retrieved",
+        message: "metrics retrieved".to_string(),
     }))
 }
 
@@ -40,7 +43,7 @@ async fn acceptablez_handler(State(pool): State<Arc<AgentPool>>) -> Result<Json<
     let acceptable = metrics.queue_size < 1000 && metrics.healthy_agent_count > 0;
     Ok(Json(SuccessResponse {
         data: AcceptablezResponse { acceptable, metrics },
-        message: "acceptable status retrieved",
+        message: "acceptable status retrieved".to_string(),
     }))
 }
 
@@ -48,7 +51,7 @@ async fn task_handler(State(pool): State<Arc<AgentPool>>, Json(task): Json<Verdi
     let result = pool.submit(task).await?;
     Ok(Json(SuccessResponse {
         data: result.into(),
-        message: "task completed",
+        message: "task completed".to_string(),
     }))
 }
 
@@ -63,22 +66,22 @@ impl From<PoolError> for AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
         let (status, code) = match &self.0 {
-            PoolError::QueueFull => (StatusCode::SERVICE_UNAVAILABLE, "QUEUE_FULL"),
-            PoolError::MaxRetriesExceeded { .. } => (StatusCode::SERVICE_UNAVAILABLE, "MAX_RETRIES_EXCEEDED"),
-            PoolError::AgentUnavailable => (StatusCode::SERVICE_UNAVAILABLE, "AGENT_UNAVAILABLE"),
-            PoolError::ShuttingDown => (StatusCode::SERVICE_UNAVAILABLE, "SHUTTING_DOWN"),
-            PoolError::TaskTimeout(_) => (StatusCode::GATEWAY_TIMEOUT, "TASK_TIMEOUT"),
-            PoolError::ConnectionFailed(_) => (StatusCode::INTERNAL_SERVER_ERROR, "CONNECTION_FAILED"),
-            PoolError::Protocol(_) => (StatusCode::INTERNAL_SERVER_ERROR, "PROTOCOL_ERROR"),
-            PoolError::Provision(_) => (StatusCode::INTERNAL_SERVER_ERROR, "PROVISION_ERROR"),
-            PoolError::AgentBusy { .. } => (StatusCode::INTERNAL_SERVER_ERROR, "AGENT_BUSY"),
+            PoolError::QueueFull => (StatusCode::SERVICE_UNAVAILABLE, ERR_QUEUE_FULL),
+            PoolError::MaxRetriesExceeded { .. } => (StatusCode::SERVICE_UNAVAILABLE, ERR_MAX_RETRIES_EXCEEDED),
+            PoolError::AgentUnavailable => (StatusCode::SERVICE_UNAVAILABLE, ERR_AGENT_UNAVAILABLE),
+            PoolError::ShuttingDown => (StatusCode::SERVICE_UNAVAILABLE, ERR_SHUTTING_DOWN),
+            PoolError::TaskTimeout(_) => (StatusCode::GATEWAY_TIMEOUT, ERR_TASK_TIMEOUT),
+            PoolError::ConnectionFailed(_) => (StatusCode::INTERNAL_SERVER_ERROR, ERR_CONNECTION_FAILED),
+            PoolError::Protocol(_) => (StatusCode::INTERNAL_SERVER_ERROR, ERR_PROTOCOL_ERROR),
+            PoolError::Provision(_) => (StatusCode::INTERNAL_SERVER_ERROR, ERR_PROVISION_ERROR),
+            PoolError::AgentBusy { .. } => (StatusCode::INTERNAL_SERVER_ERROR, ERR_AGENT_BUSY),
         };
         let message = self.0.to_string();
 
         error!(error = %self.0, status = %status, "request failed");
 
         let body = Json(ErrorResponse {
-            error: ErrorBody { code },
+            error: ErrorBody { code: code.to_string() },
             message,
         });
 
