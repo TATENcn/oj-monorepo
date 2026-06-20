@@ -1,0 +1,9 @@
+[package]
+name = "judge_core_sdk"
+edition.workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+shared = { workspace = true }
+reqwest = { version = "0.13.4", features = ["json"] }
+serde = { workspace = true }
