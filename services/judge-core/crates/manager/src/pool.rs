@@ -9,7 +9,7 @@ use std::{
 };
 
 use shared::{
-    models::{VerdictTask, VerdictTaskResult},
+    models::{VerdictTask, VerdictTaskResult, http::PoolMetrics},
     protocol::{self, FrameId, ProtocolError},
 };
 use tokio::{
@@ -67,16 +67,6 @@ pub enum PoolError {
     AgentBusy { agent_id: String },
     #[error("pool is shutting down")]
     ShuttingDown,
-}
-
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct PoolMetrics {
-    pub queue_size: usize,
-    pub agent_count: usize,
-    pub healthy_agent_count: usize,
-    pub active_tasks: u32,
-    pub draining_agent_count: usize,
-    pub unhealthy_agent_count: usize,
 }
 
 #[derive(Debug, Clone)]

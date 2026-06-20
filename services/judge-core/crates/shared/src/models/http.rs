@@ -2,6 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use super::{Case, KilledReason, ResourcesUsage, VerdictTaskResult};
 
+pub const METRICS_URL: &str = "/metricsz";
+pub const ACCEPTABLE_URL: &str = "/acceptablez";
+pub const TASK_URL: &str = "/task";
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 #[serde(tag = "status")]
 pub enum VerdictResponse {
@@ -47,4 +51,20 @@ pub struct ErrorResponse {
 pub struct SuccessResponse<T: Serialize> {
     pub data: T,
     pub message: &'static str,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AcceptablezResponse {
+    pub acceptable: bool,
+    pub metrics: PoolMetrics,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PoolMetrics {
+    pub queue_size: usize,
+    pub agent_count: usize,
+    pub healthy_agent_count: usize,
+    pub active_tasks: u32,
+    pub draining_agent_count: usize,
+    pub unhealthy_agent_count: usize,
 }

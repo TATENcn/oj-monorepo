@@ -7,28 +7,24 @@ use axum::{
     response::IntoResponse,
     routing::{get, post},
 };
-use serde::Serialize;
 use tower_http::trace::TraceLayer;
 use tracing::error;
 
-use crate::pool::{AgentPool, PoolError, PoolMetrics};
-use shared::models::VerdictTask;
-use shared::models::http::{ErrorBody, ErrorResponse, SuccessResponse, VerdictResponse};
+use crate::pool::{AgentPool, PoolError};
+use shared::models::http::{AcceptablezResponse, ErrorBody, ErrorResponse, PoolMetrics, SuccessResponse, VerdictResponse};
+use shared::models::{
+    VerdictTask,
+    http::{ACCEPTABLE_URL, METRICS_URL, TASK_URL},
+};
 
 pub fn create_router(pool: Arc<AgentPool>) -> Router {
     Router::new()
-        .route("/metricsz", get(metricsz_handler))
-        .route("/acceptablez", get(acceptablez_handler))
-        .route("/task", post(task_handler))
+        .route(METRICS_URL, get(metricsz_handler))
+        .route(ACCEPTABLE_URL, get(acceptablez_handler))
+        .route(TASK_URL, post(task_handler))
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .layer(TraceLayer::new_for_http())
         .with_state(pool)
-}
-
-#[derive(Serialize)]
-struct AcceptablezResponse {
-    acceptable: bool,
-    metrics: PoolMetrics,
 }
 
 async fn metricsz_handler(State(pool): State<Arc<AgentPool>>) -> Result<Json<SuccessResponse<PoolMetrics>>, AppError> {

@@ -4,10 +4,11 @@ use std::{
     time::{Duration, Instant},
 };
 
+use shared::models::http::PoolMetrics;
 use tokio::time::interval;
 use tracing::{debug, error, info};
 
-use crate::pool::{AgentPool, PoolMetrics};
+use crate::pool::AgentPool;
 
 #[derive(Debug, Clone)]
 pub struct ScalerConfig {
