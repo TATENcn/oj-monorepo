@@ -1,4 +1,6 @@
+CREATE TYPE "acceptable_language" AS ENUM('Cpp');--> statement-breakpoint
 CREATE TYPE "difficulty" AS ENUM('入门', '普及-', '普及/提高-', '普及+/提高', '提高+/省选-', '省选/NOI-', 'NOI/NOI+/CTSC');--> statement-breakpoint
+CREATE TYPE "submission_status" AS ENUM('pending', 'completed');--> statement-breakpoint
 CREATE TYPE "test_case_type" AS ENUM('example', 'hidden');--> statement-breakpoint
 CREATE TABLE "problem_tags" (
 	"problem_id" uuid PRIMARY KEY,
@@ -20,6 +22,18 @@ CREATE TABLE "problems" (
 	"limit_output_bytes" integer NOT NULL
 );
 --> statement-breakpoint
+CREATE TABLE "submissions" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+	"problem_id" uuid NOT NULL,
+	"user_id" uuid NOT NULL,
+	"source_code" text NOT NULL,
+	"submission_status" "submission_status" DEFAULT 'pending'::"submission_status" NOT NULL,
+	"result" jsonb,
+	"language" "acceptable_language" NOT NULL,
+	"submitted_at" timestamp DEFAULT now() NOT NULL,
+	"completed_at" timestamp
+);
+--> statement-breakpoint
 CREATE TABLE "tags" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid(),
 	"name" text NOT NULL UNIQUE,
@@ -37,4 +51,6 @@ CREATE TABLE "test_cases" (
 ALTER TABLE "problem_tags" ADD CONSTRAINT "problem_tags_problem_id_problems_id_fkey" FOREIGN KEY ("problem_id") REFERENCES "problems"("id");--> statement-breakpoint
 ALTER TABLE "problem_tags" ADD CONSTRAINT "problem_tags_tag_id_tags_id_fkey" FOREIGN KEY ("tag_id") REFERENCES "tags"("id");--> statement-breakpoint
 ALTER TABLE "problems" ADD CONSTRAINT "problems_author_id_user_id_fkey" FOREIGN KEY ("author_id") REFERENCES "user"("id");--> statement-breakpoint
+ALTER TABLE "submissions" ADD CONSTRAINT "submissions_problem_id_problems_id_fkey" FOREIGN KEY ("problem_id") REFERENCES "problems"("id");--> statement-breakpoint
+ALTER TABLE "submissions" ADD CONSTRAINT "submissions_user_id_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "user"("id");--> statement-breakpoint
 ALTER TABLE "test_cases" ADD CONSTRAINT "test_cases_problem_id_problems_id_fkey" FOREIGN KEY ("problem_id") REFERENCES "problems"("id");
