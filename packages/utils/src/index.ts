@@ -1,11 +1,11 @@
 import { connect } from "amqplib";
 
 export const initRabbitMq = async (connectionUrl: string) => {
-	const SUBMIT_QUEUE = "submit.queue";
-	const RESULT_QUEUE = "result.queue";
-	const SUBMIT_ROUTE = "submit";
-	const RESULT_ROUTE = "result";
-	const EXCHANGE_NAME = "online-judge.exchange";
+	const SUBMIT_QUEUE = "submit.queue" as const;
+	const RESULT_QUEUE = "result.queue" as const;
+	const SUBMIT_ROUTE = "submit" as const;
+	const RESULT_ROUTE = "result" as const;
+	const EXCHANGE_NAME = "online-judge.exchange" as const;
 
 	const connection = await connect(connectionUrl);
 
