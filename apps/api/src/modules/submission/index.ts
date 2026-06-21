@@ -2,9 +2,11 @@ import { eq } from "drizzle-orm";
 import Elysia, { t } from "elysia";
 import type { VerdictTask } from "models/judge-core";
 import type { ResultMessage, SubmitMessage } from "models/message";
+import { AMQP_TOPOLOGY } from "models/message";
 import { authPlugin } from "../auth";
 import { databasePlugin } from "../db";
-import { acceptableLanguageEnumLiteral, problems, submissions, testCases } from "../db/schema";
+import { acceptableLanguageEnumLiteral } from "../db/enums";
+import { problems, submissions, testCases } from "../db/schema";
 import { mqPlugin } from "./amqp";
 
 const acceptableLanguageEnum = t.Enum(Object.fromEntries(acceptableLanguageEnumLiteral.map((v) => [v, v])));
@@ -14,10 +16,10 @@ export const submissionPlugin = new Elysia({ name: "submission" })
 	.use(mqPlugin)
 	.use(authPlugin)
 	.onStart(async (app) => {
-		const { channel, config } = app.decorator.mq;
+		const { channel } = app.decorator.mq;
 		const db = app.decorator.db;
 		await channel.consume(
-			config.RESULT_QUEUE,
+			AMQP_TOPOLOGY.RESULT_QUEUE,
 			async (msg) => {
 				if (!msg) return;
 				try {
@@ -73,7 +75,7 @@ export const submissionPlugin = new Elysia({ name: "submission" })
 			};
 
 			const msg: SubmitMessage = { submission_id: submission.id, task };
-			mq.channel.publish(mq.config.EXCHANGE_NAME, mq.config.SUBMIT_ROUTE, Buffer.from(JSON.stringify(msg)));
+			mq.channel.publish(AMQP_TOPOLOGY.EXCHANGE_NAME, AMQP_TOPOLOGY.SUBMIT_ROUTE, Buffer.from(JSON.stringify(msg)));
 
 			return status(202, { id: submission.id });
 		},
