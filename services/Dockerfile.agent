@@ -14,10 +14,10 @@ RUN apk add --no-cache \
     linux-headers
 
 COPY --from=planner /build/recipe.json recipe.json
-RUN cargo chef cook --release --recipe-path recipe.json --bin agent
+RUN cargo chef cook --release --recipe-path recipe.json --bin judge_core_agent
 
 COPY . .
-RUN cargo build --release --bin agent
+RUN cargo build --release --bin judge_core_agent
 
 FROM alpine:3.23.4
 
@@ -26,8 +26,8 @@ RUN apk add --no-cache libseccomp g++ ccache && \
 
 RUN mkdir -p /work /run/judge-core/agents
 
-COPY --from=builder /build/target/release/agent /usr/local/bin/agent
+COPY --from=builder /build/target/release/judge_core_agent /usr/local/bin/judge_core_agent
 
 USER root
 
-ENTRYPOINT ["/usr/local/bin/agent"]
+ENTRYPOINT ["/usr/local/bin/judge_core_agent"]
