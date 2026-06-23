@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
@@ -6,6 +6,15 @@ import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 class RootModule {}
 
 const app = await NestFactory.create(RootModule);
+
+app.useGlobalPipes(
+	new ValidationPipe({
+		whitelist: true,
+		forbidNonWhitelisted: true,
+		forbidUnknownValues: true,
+		transform: true,
+	}),
+);
 
 const config = new DocumentBuilder()
 	.setTitle("TATEN Online Judge Platform")
