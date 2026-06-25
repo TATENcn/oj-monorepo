@@ -1,0 +1,4 @@
+[package]
+name = "api_server"
+edition.workspace = true
+version = "0.1.0"
