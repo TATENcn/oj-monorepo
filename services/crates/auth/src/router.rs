@@ -1,14 +1,21 @@
-use axum::{Form, Json, Router, extract::State, http::StatusCode, routing::post};
+use axum::{
+    Form, Json, Router,
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
+use sha2::{Digest, Sha256};
 use tracing::{error, info, warn};
 
 use crate::{
     hash,
     models::{
         http::{
-            AccessTokenType, TokenIntrospectionRequest, TokenIntrospectionResponse, TokenOperationErrorResponse, TokenRequest, TokenResponse,
-            TokenRevocationRequest,
+            AccessTokenType, Jwk, JwksResponse, TokenIntrospectionRequest, TokenIntrospectionResponse, TokenOperationErrorResponse, TokenRequest,
+            TokenResponse, TokenRevocationRequest,
         },
         refresh_tokens, users,
     },
@@ -35,6 +42,50 @@ pub fn router(state: AppState) -> Router {
         // POST `/introspect` [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)
         .route("/introspect", post(introspect_handler))
         .with_state(state)
+}
+
+/// [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517) JWKS endpoint
+pub fn jwks_router(state: AppState) -> Router {
+    Router::new().route("/jwks.json", get(jwks_handler)).with_state(state)
+}
+
+async fn jwks_handler(State(state): State<AppState>) -> Result<Json<JwksResponse>, StatusCode> {
+    let Some(raw_key) = extract_ed25519_public_key(&state.public_key_pem) else {
+        error!("cannot parse ed25519 public key");
+        return Err(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+
+    let kid = {
+        let mut hasher = Sha256::new();
+        hasher.update(&raw_key);
+        URL_SAFE_NO_PAD.encode(hasher.finalize())
+    };
+
+    let x = URL_SAFE_NO_PAD.encode(&raw_key);
+
+    Ok(Json(JwksResponse {
+        keys: vec![Jwk {
+            kty: "OKP",
+            crv: "Ed25519",
+            use_: "sig",
+            alg: "EdDSA",
+            kid,
+            x,
+        }],
+    }))
+}
+
+/// Extract the raw 32-byte Ed25519 public key from a PEM-encoded SPKI document
+fn extract_ed25519_public_key(pem: &[u8]) -> Option<Vec<u8>> {
+    let pem_str = std::str::from_utf8(pem).ok()?;
+
+    let body = pem_str.lines().filter(|line| !line.starts_with("-----")).collect::<Vec<&str>>().join("");
+    let der = base64::engine::general_purpose::STANDARD.decode(&body).ok()?;
+
+    if der.len() < 32 {
+        return None;
+    }
+    Some(der[der.len() - 32..].to_vec())
 }
 
 async fn token_handler(State(state): State<AppState>, Form(body): Form<TokenRequest>) -> Result<Json<TokenResponse>, HandlerError> {

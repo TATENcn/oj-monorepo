@@ -93,3 +93,21 @@ impl TokenIntrospectionResponse {
         Self::Failed { active: false }
     }
 }
+
+/// [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517) JWKS response.
+#[derive(Debug, Serialize)]
+pub struct JwksResponse {
+    pub keys: Vec<Jwk>,
+}
+
+/// [RFC 7517#4](https://datatracker.ietf.org/doc/html/rfc7517#section-4) JWK for Ed25519 (OKP key type).
+#[derive(Debug, Serialize)]
+pub struct Jwk {
+    pub kty: &'static str,
+    pub crv: &'static str,
+    #[serde(rename = "use")]
+    pub use_: &'static str,
+    pub alg: &'static str,
+    pub kid: String,
+    pub x: String,
+}
