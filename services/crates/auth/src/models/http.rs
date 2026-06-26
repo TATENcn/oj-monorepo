@@ -16,6 +16,8 @@ pub enum GetAccessTokenErrorResponse {
     InvalidRequest,
     InvalidGrant,
     UnsupportedGrantType,
+    /// WARNING: Non-standard
+    ServerError,
 }
 
 /// Token endpoint request
