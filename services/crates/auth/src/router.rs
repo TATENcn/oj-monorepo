@@ -1,4 +1,4 @@
-use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
+use axum::{Form, Json, Router, extract::State, http::StatusCode, routing::post};
 use chrono::Utc;
 use sea_orm::{ActiveModelTrait, ActiveValue::Set, ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter};
 use tracing::{error, info, warn};
@@ -30,7 +30,7 @@ pub fn router(state: AppState) -> Router {
         .with_state(state)
 }
 
-async fn token_handler(State(state): State<AppState>, Json(body): Json<TokenRequest>) -> Result<Json<TokenResponse>, HandlerError> {
+async fn token_handler(State(state): State<AppState>, Form(body): Form<TokenRequest>) -> Result<Json<TokenResponse>, HandlerError> {
     match body {
         // Password grant
         TokenRequest::Password { username, password } => {
