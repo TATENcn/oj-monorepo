@@ -2458,6 +2458,7 @@ version = "0.0.0"
 dependencies = [
  "axum",
  "config",
+ "config_macro",
  "containerd-client",
  "judge_core_shared",
  "libc",
@@ -4621,6 +4622,7 @@ name = "submission-processor"
 version = "0.1.0"
 dependencies = [
  "config",
+ "config_macro",
  "futures-util",
  "judge_core_sdk",
  "judge_core_shared",

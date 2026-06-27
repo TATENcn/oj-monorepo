@@ -16,3 +16,4 @@ thiserror = { workspace = true }
 config = { workspace = true }
 judge_core_sdk = { path = "../judge_core_sdk" }
 judge_core_shared = { path = "../judge_core_shared" }
+config_macro = { workspace = true }
