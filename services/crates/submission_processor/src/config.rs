@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use config::{Config, ConfigError, Environment, File};
 use config_macro::config;
 use serde::Deserialize;
