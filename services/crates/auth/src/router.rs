@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use axum::{
     Form, Json, Router,
     extract::State,
@@ -22,7 +24,6 @@ use crate::{
     token::{self, TokenType},
 };
 
-#[derive(Clone)]
 pub struct AppState {
     pub db: DatabaseConnection,
     pub private_key_pem: Vec<u8>,
@@ -33,7 +34,7 @@ pub struct AppState {
 
 type HandlerError = (StatusCode, Json<TokenOperationErrorResponse>);
 
-pub fn router(state: AppState) -> Router {
+pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         // POST `/token` [RFC 6749#2.3.1](https://datatracker.ietf.org/doc/html/rfc6749#section-2.3.1) (partial implementation)
         .route("/token", post(token_handler))
@@ -45,11 +46,11 @@ pub fn router(state: AppState) -> Router {
 }
 
 /// [RFC 7517](https://datatracker.ietf.org/doc/html/rfc7517) JWKS endpoint
-pub fn jwks_router(state: AppState) -> Router {
+pub fn jwks_router(state: Arc<AppState>) -> Router {
     Router::new().route("/jwks.json", get(jwks_handler)).with_state(state)
 }
 
-async fn jwks_handler(State(state): State<AppState>) -> Result<Json<JwksResponse>, StatusCode> {
+async fn jwks_handler(State(state): State<Arc<AppState>>) -> Result<Json<JwksResponse>, StatusCode> {
     let Some(raw_key) = extract_ed25519_public_key(&state.public_key_pem) else {
         error!("cannot parse ed25519 public key");
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
@@ -88,7 +89,7 @@ fn extract_ed25519_public_key(pem: &[u8]) -> Option<Vec<u8>> {
     Some(der[der.len() - 32..].to_vec())
 }
 
-async fn token_handler(State(state): State<AppState>, Form(body): Form<TokenRequest>) -> Result<Json<TokenResponse>, HandlerError> {
+async fn token_handler(State(state): State<Arc<AppState>>, Form(body): Form<TokenRequest>) -> Result<Json<TokenResponse>, HandlerError> {
     match body {
         // Password grant
         TokenRequest::Password { username, password } => {
@@ -203,7 +204,7 @@ fn internal_error() -> HandlerError {
 }
 
 /// [RFC 7009#2.2](https://datatracker.ietf.org/doc/html/rfc7009#section-2.2)
-async fn revoke_handler(State(state): State<AppState>, Form(body): Form<TokenRevocationRequest>) -> StatusCode {
+async fn revoke_handler(State(state): State<Arc<AppState>>, Form(body): Form<TokenRevocationRequest>) -> StatusCode {
     let Ok(data) = token::verify(&body.token, TokenType::Refresh, &state.public_key_pem) else {
         warn!("revoke called with invalid or expired refresh token");
         return StatusCode::OK;
@@ -242,7 +243,7 @@ async fn revoke_handler(State(state): State<AppState>, Form(body): Form<TokenRev
 }
 
 /// [RFC 7662#2.2](https://datatracker.ietf.org/doc/html/rfc7662#section-2.2)
-async fn introspect_handler(State(state): State<AppState>, Form(body): Form<TokenIntrospectionRequest>) -> Json<TokenIntrospectionResponse> {
+async fn introspect_handler(State(state): State<Arc<AppState>>, Form(body): Form<TokenIntrospectionRequest>) -> Json<TokenIntrospectionResponse> {
     let inactive = || Json(TokenIntrospectionResponse::failed());
 
     let Ok(data) = token::verify(&body.token, body.token_hint, &state.public_key_pem) else {
