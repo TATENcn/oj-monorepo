@@ -72,14 +72,14 @@ impl ApiServerConfig {
 
     pub async fn to_auth_app_state(&self, db: DatabaseConnection) -> Result<AuthAppState, io::Error> {
         let private = fs::read(&self.auth.private_key_pem_filepath).await?;
-        let public = fs::read(&self.auth.private_key_pem_filepath).await?;
+        let public = fs::read(&self.auth.public_key_pem_filepath).await?;
 
         Ok(AuthAppState {
             db,
             private_key_pem: private,
             public_key_pem: public,
             access_token_ttl_secs: self.auth.access_token_ttl_secs,
-            refresh_token_ttl_secs: self.auth.access_token_ttl_secs,
+            refresh_token_ttl_secs: self.auth.refresh_token_ttl_secs,
         })
     }
 }
