@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use gateway::config::GatewayConfig;
 use http_body_util::Full;
 use hyper::{Request, Response, body::Incoming};
 use hyper_util::rt::{TokioExecutor, TokioIo};
@@ -7,8 +8,6 @@ use tokio::io;
 use tokio::net::TcpListener;
 use tokio::task::JoinSet;
 use tracing::{error, info};
-
-pub mod config;
 
 async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::http::Error> {
     info!(method = ?req.method(), uri = ?req.uri(), version = ?req.version(), "received request");
@@ -25,7 +24,7 @@ async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>,
 async fn main() -> Result<(), GatewayError> {
     tracing_subscriber::fmt::init();
 
-    let config = config::GatewayConfig::load()?;
+    let config = GatewayConfig::load()?;
     let listener = TcpListener::bind(config.addr).await?;
 
     let mut handles = JoinSet::new();
