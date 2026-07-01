@@ -1,10 +1,18 @@
-use std::{collections::HashSet, time};
+use std::{collections::HashSet, sync::LazyLock, time};
 
+use ed25519_dalek::pkcs8::EncodePublicKey;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, TokenData, Validation, decode, encode, errors::ErrorKind};
 use serde::{Deserialize, Serialize};
 
 const ISSUER: &str = "auth";
 const AUDIENCE: &str = "onlinejudge";
+
+static JWKS_VALIDATION: LazyLock<Validation> = LazyLock::new(|| {
+    let mut validation = Validation::new(Algorithm::EdDSA);
+    validation.aud = Some(HashSet::from([AUDIENCE.to_string()]));
+    validation.iss = Some(HashSet::from([ISSUER.to_string()]));
+    validation
+});
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -61,15 +69,32 @@ pub fn generate(sub: &str, typ: TokenType, private_key_pem: &[u8], expiration_se
 
 /// Verify and decode a JWT
 pub fn verify(token: &str, typ: TokenType, public_key_pem: &[u8]) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
-    let mut validation = Validation::new(Algorithm::EdDSA);
-    validation.aud = Some(HashSet::from([AUDIENCE.to_string()]));
-    validation.iss = Some(HashSet::from([ISSUER.to_string()]));
-
-    let data = decode::<Claims>(token, &DecodingKey::from_ed_pem(public_key_pem)?, &validation)?;
+    let data = decode::<Claims>(token, &DecodingKey::from_ed_pem(public_key_pem)?, &JWKS_VALIDATION)?;
 
     if data.claims.typ != typ {
         return Err(ErrorKind::InvalidToken.into());
     }
 
     Ok(data)
+}
+
+pub fn verify_with_raw_key(token: &str, typ: TokenType, raw_key: &[u8]) -> Result<TokenData<Claims>, jsonwebtoken::errors::Error> {
+    let der = raw_to_der(raw_key)?;
+    let data = decode::<Claims>(token, &DecodingKey::from_ed_der(&der), &JWKS_VALIDATION)?;
+
+    if data.claims.typ != typ {
+        return Err(ErrorKind::InvalidToken.into());
+    }
+
+    Ok(data)
+}
+
+fn raw_to_der(raw_key: &[u8]) -> Result<Vec<u8>, jsonwebtoken::errors::Error> {
+    let arr: &[u8; 32] = raw_key.try_into().map_err(|_| jsonwebtoken::errors::ErrorKind::InvalidKeyFormat)?;
+    let verifying_key = ed25519_dalek::VerifyingKey::from_bytes(arr).map_err(|_| jsonwebtoken::errors::ErrorKind::InvalidKeyFormat)?;
+    let der = verifying_key
+        .to_public_key_der()
+        .map_err(|_| jsonwebtoken::errors::ErrorKind::InvalidKeyFormat)?;
+
+    Ok(der.as_bytes().to_vec())
 }
