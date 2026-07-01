@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthenticationLevel {
     /// Pass if no token is provided (incorrect tokens will be rejected)
@@ -13,14 +13,14 @@ pub enum AuthenticationLevel {
     BypassAndStrip,
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MatchType {
     Prefix,
     Exact,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GatewayConfig {
     pub routes: Vec<RouteConfig>,
     pub jwks_url: String,
@@ -28,7 +28,7 @@ pub struct GatewayConfig {
     pub upstream_timeout_secs: u64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RouteConfig {
     pub path: String,
     pub auth: AuthenticationLevel,
@@ -37,7 +37,7 @@ pub struct RouteConfig {
     pub match_type: MatchType,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RateLimitConfig {
     pub per_sec: u64,
     pub burst: u64,
