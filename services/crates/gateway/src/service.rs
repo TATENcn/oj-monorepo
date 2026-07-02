@@ -45,12 +45,16 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
                 Ok(resp) => Ok(resp),
                 Err(e) => {
                     error!(?e, "proxy error");
-                    Ok(Response::builder()
-                        .status(e.status_code())
-                        .body(into_boxed_body(Bytes::from(e.to_string())))
-                        .expect("building error response"))
+                    Ok(error_response(e.status_code(), &e.to_string()))
                 }
             }
         })
     }
+}
+
+fn error_response(status: StatusCode, msg: &str) -> Response<BoxBody<Bytes, hyper::Error>> {
+    Response::builder()
+        .status(status)
+        .body(into_boxed_body(Bytes::from(msg.to_string())))
+        .expect("building error response")
 }
