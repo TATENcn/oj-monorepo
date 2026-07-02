@@ -14,27 +14,25 @@ pub struct RouteMatch<'a> {
 }
 
 pub fn match_route<'a>(routes: &'a [RouteConfig], request_path: &str) -> Option<RouteMatch<'a>> {
-    let mut candidates: Vec<(usize, bool, &RouteConfig)> = Vec::new();
-
-    for route in routes {
-        match route.match_type {
-            MatchType::Exact => {
-                if request_path == route.path {
-                    candidates.push((route.path.len(), true, route));
-                }
+    routes
+        .iter()
+        .fold(None, |best: Option<((usize, bool), &RouteConfig)>, route| {
+            let matches = match route.match_type {
+                MatchType::Exact => request_path == route.path,
+                MatchType::Prefix => is_prefix_match(&route.path, request_path),
+            };
+            if !matches {
+                return best;
             }
-            MatchType::Prefix => {
-                if is_prefix_match(&route.path, request_path) {
-                    candidates.push((route.path.len(), false, route));
-                }
+            let is_exact = matches!(route.match_type, MatchType::Exact);
+            let key = (route.path.len(), is_exact);
+            match best {
+                None => Some((key, route)),
+                Some((best_key, _)) if key > best_key => Some((key, route)),
+                Some(prev) => Some(prev),
             }
-        }
-    }
-
-    // Longest match first, then exact beats prefix on tie
-    candidates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| b.1.cmp(&a.1)));
-
-    candidates.first().map(|(_, _, config)| RouteMatch { config })
+        })
+        .map(|(_, route)| RouteMatch { config: route })
 }
 
 fn is_prefix_match(prefix: &str, path: &str) -> bool {
