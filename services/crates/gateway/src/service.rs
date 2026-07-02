@@ -8,6 +8,7 @@ use tracing::error;
 use crate::{
     config::{AuthenticationLevel, RouteConfig},
     jwks::JwksManager,
+    rate_limiter::{self, RateLimiter},
     router::{self, ProxyError},
 };
 
@@ -15,14 +16,16 @@ pub struct ProxyService {
     routes: Arc<Vec<RouteConfig>>,
     timeout: Duration,
     jwks: Arc<JwksManager>,
+    rate_limiter: Arc<dyn RateLimiter>,
 }
 
 impl ProxyService {
-    pub fn new(routes: Vec<RouteConfig>, timeout: Duration, jwks: JwksManager) -> Self {
+    pub fn new(routes: Vec<RouteConfig>, timeout: Duration, jwks: JwksManager, rate_limiter: Arc<dyn RateLimiter>) -> Self {
         Self {
             routes: Arc::new(routes),
             timeout,
             jwks: Arc::new(jwks),
+            rate_limiter,
         }
     }
 }
@@ -48,6 +51,7 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
         let routes = self.routes.clone();
         let timeout = self.timeout;
         let jwks = self.jwks.clone();
+        let rate_limiter = self.rate_limiter.clone();
 
         Box::pin(async move {
             let path = req.uri().path().to_string();
@@ -56,6 +60,15 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
                 Some(m) => m,
                 None => return Ok(error_response(StatusCode::NOT_FOUND, "no route matched")),
             };
+
+            // Rate limit check
+            if let Some(client_ip) = rate_limiter::client_ip(req.headers(), None) {
+                let cfg = &matched.config.rate_limit;
+                let key = format!("{}:{}", matched.config.path, client_ip);
+                if !rate_limiter.check(&key, cfg.per_sec, cfg.burst) {
+                    return Ok(error_response(StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded"));
+                }
+            }
 
             let req = match apply_auth(req, &matched.config.auth, &jwks) {
                 Ok(req) => req,

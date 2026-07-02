@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use gateway::{config::GatewayConfig, jwks::JwksManager, service::ProxyService};
+use gateway::{config::GatewayConfig, jwks::JwksManager, rate_limiter::memory::InMemoryRateLimiter, service::ProxyService};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use tokio::io;
@@ -16,7 +16,16 @@ async fn main() -> Result<(), GatewayError> {
     let listener = TcpListener::bind(&config.addr).await?;
     let jwks = JwksManager::new(config.jwks_url.clone(), Duration::from_secs(60)).await?;
     jwks.start_background_refresh();
-    let service = Arc::new(ProxyService::new(config.routes, Duration::from_secs(config.upstream_timeout_secs), jwks));
+
+    // REVIEW: Make more choices, but in-memory now
+    let rate_limiter = Arc::new(InMemoryRateLimiter::new(Duration::from_secs(300)));
+
+    let service = Arc::new(ProxyService::new(
+        config.routes,
+        Duration::from_secs(config.upstream_timeout_secs),
+        jwks,
+        rate_limiter,
+    ));
 
     info!(addr = %config.addr, "gateway listening");
 
