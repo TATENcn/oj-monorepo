@@ -56,7 +56,7 @@ async fn main() -> Result<(), GatewayError> {
 
     // Wait for in-flight connections
     info!(pending = handles.len(), "waiting for in-flight connections to drain");
-    while let Some(_) = handles.join_next().await {}
+    while handles.join_next().await.is_some() {}
 
     info!("shutdown complete");
     Ok(())
