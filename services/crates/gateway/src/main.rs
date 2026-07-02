@@ -1,48 +1,30 @@
-use bytes::Bytes;
-use gateway::config::GatewayConfig;
-use http_body_util::Full;
-use hyper::{Request, Response, body::Incoming};
+use std::{sync::Arc, time::Duration};
+
+use gateway::{config::GatewayConfig, service::ProxyService};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use tokio::io;
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::task::JoinSet;
 use tracing::{error, info};
-
-async fn handle_request(req: Request<Incoming>) -> Result<Response<Full<Bytes>>, hyper::http::Error> {
-    info!(method = ?req.method(), uri = ?req.uri(), version = ?req.version(), "received request");
-
-    let body = format!("Hello world!\n");
-
-    Response::builder()
-        .status(200)
-        .header("Content-Type", "text/plain")
-        .body(Full::new(Bytes::from(body)))
-}
 
 #[tokio::main]
 async fn main() -> Result<(), GatewayError> {
     tracing_subscriber::fmt::init();
 
     let config = GatewayConfig::load()?;
-    let listener = TcpListener::bind(config.addr).await?;
+    let listener = TcpListener::bind(&config.addr).await?;
+    let service = Arc::new(ProxyService::new(config.routes, Duration::from_secs(config.upstream_timeout_secs)));
+    info!(addr = ?&config.addr, "gateway listening");
 
     let mut handles = JoinSet::new();
 
     loop {
         tokio::select! {
             result = listener.accept() => {
-                let (stream, addr) = result?;
-                info!(?addr, "accepted connection");
-
-                handles.spawn(async move {
-                    if let Err(err) = AutoBuilder::new(TokioExecutor::new())
-                        .serve_connection(TokioIo::new(stream), hyper::service::service_fn(handle_request))
-                        .await
-                    {
-                        error!(?err, "unexpected error occurred")
-                    }
-                });
+                let (stream, remote) = result?;
+                info!(?remote, "accepted connection");
+                handles.spawn(handle_connection(stream, service.clone()));
             },
             _ = tokio::signal::ctrl_c() => {
                 info!("received SIGINT");
@@ -60,6 +42,12 @@ async fn main() -> Result<(), GatewayError> {
 
     info!("shutdown complete");
     Ok(())
+}
+
+async fn handle_connection(stream: TcpStream, service: Arc<ProxyService>) {
+    if let Err(err) = AutoBuilder::new(TokioExecutor::new()).serve_connection(TokioIo::new(stream), service).await {
+        error!(?err, "connection error")
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
