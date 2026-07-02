@@ -23,8 +23,8 @@ impl InMemoryRateLimiter {
 impl RateLimiter for InMemoryRateLimiter {
     fn check(&self, key: &str, per_sec: u64, burst: u64) -> bool {
         let limiter = self.limiters.get(key).unwrap_or_else(|| {
-            let qps = NonZeroU32::new(per_sec as u32).unwrap_or(NonZeroU32::new(1).unwrap());
-            let burst_nz = NonZeroU32::new(burst as u32).unwrap_or(NonZeroU32::new(1).unwrap());
+            let qps = NonZeroU32::new(per_sec as u32).expect("per_sec validated at startup");
+            let burst_nz = NonZeroU32::new(burst as u32).expect("burst validated at startup");
             let limiter = Arc::new(DefaultDirectRateLimiter::direct(Quota::per_second(qps).allow_burst(burst_nz)));
             self.limiters.insert(key.to_string(), Arc::clone(&limiter));
             limiter
