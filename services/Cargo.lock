@@ -148,6 +148,9 @@ name = "api_server_auth"
 version = "0.1.0"
 dependencies = [
  "auth",
+ "confide",
+ "config",
+ "serde",
  "thiserror 2.0.18",
  "tokio",
  "tracing",

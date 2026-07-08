@@ -9,3 +9,6 @@ auth = { path = "../auth" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
+serde = { workspace = true }
+confide = { workspace = true }
+config = { workspace = true }
