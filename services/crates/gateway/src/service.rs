@@ -158,16 +158,14 @@ fn apply_auth(
         AuthenticationLevel::Required => {
             let claims = verify_token(req.headers().get(header::AUTHORIZATION), jwks)?;
             let user_id = parse_user_id(&claims.sub)?;
-            req.headers_mut()
-                .insert(header::HeaderName::from_static("x-user-id"), user_id);
+            req.headers_mut().insert(header::HeaderName::from_static("x-user-id"), user_id);
             Ok(req)
         }
         AuthenticationLevel::Optional => {
             if let Some(val) = req.headers().get(header::AUTHORIZATION) {
                 let claims = verify_token(Some(val), jwks)?;
                 let user_id = parse_user_id(&claims.sub)?;
-                req.headers_mut()
-                    .insert(header::HeaderName::from_static("x-user-id"), user_id);
+                req.headers_mut().insert(header::HeaderName::from_static("x-user-id"), user_id);
             }
             Ok(req)
         }
