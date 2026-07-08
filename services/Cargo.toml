@@ -20,5 +20,5 @@ uuid = "1.23.4"
 chrono = "0.4.45"
 config = "0.15.24"
 
-config_macro = { path = "./crates/config_macro" }
+confide = "0.1"
 judge_core_shared = { path = "./crates/judge_core_shared" }

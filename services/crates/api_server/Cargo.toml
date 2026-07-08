@@ -10,7 +10,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 auth = { path = "../auth" }
 serde = { workspace = true }
-config_macro = { workspace = true }
+confide = { workspace = true }
 config = { workspace = true }
 thiserror = { workspace = true }
 axum = { workspace = true }

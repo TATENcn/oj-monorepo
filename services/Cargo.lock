@@ -132,8 +132,8 @@ dependencies = [
  "auth",
  "axum",
  "chrono",
+ "confide",
  "config",
- "config_macro",
  "sea-orm",
  "serde",
  "thiserror 2.0.18",
@@ -876,6 +876,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ae3f5d315924270530207e2a68396c3cc547f6dca3fbdca317cfb1a51edb593"
 
 [[package]]
+name = "bytesize"
+version = "2.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3d7c8918969267b2932ffd5655509bbbea0833823058c378876953217f5fc50e"
+
+[[package]]
 name = "cbc"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1010,6 +1016,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
+]
+
+[[package]]
+name = "confide"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc06941063a9395e88f9402308f45af93dd7aeddc7c597ecf979f0673ee3b57c"
+dependencies = [
+ "bytesize",
+ "confide-impl",
+ "humantime-serde",
+ "serde",
+]
+
+[[package]]
+name = "confide-impl"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7bacb9d44b85ffe6f7d79b55d3350d8935bd7d2c95d65aebea00aff9fab67c8"
+dependencies = [
+ "bytesize",
+ "humantime",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.118",
 ]
 
 [[package]]
@@ -2213,6 +2244,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
+name = "humantime"
+version = "2.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15cdd26707701c53297e2fa6afb323d55fbc1d0810c3aec078ae3ef0424c3c15"
+
+[[package]]
+name = "humantime-serde"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "57a3db5ea5923d99402c94e9feb261dc5ee9b4efa158b0315f788cf549cc200c"
+dependencies = [
+ "humantime",
+ "serde",
+]
+
+[[package]]
 name = "hybrid-array"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2603,8 +2650,8 @@ name = "judge_core_manager"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "confide",
  "config",
- "config_macro",
  "containerd-client",
  "judge_core_shared",
  "libc",
@@ -4816,8 +4863,8 @@ dependencies = [
 name = "submission_processor"
 version = "0.1.0"
 dependencies = [
+ "confide",
  "config",
- "config_macro",
  "futures-util",
  "judge_core_sdk",
  "judge_core_shared",
