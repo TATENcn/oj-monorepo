@@ -144,6 +144,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "api_server_auth"
+version = "0.1.0"
+dependencies = [
+ "auth",
+ "thiserror 2.0.18",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "api_server_db"
 version = "0.1.0"
 dependencies = [

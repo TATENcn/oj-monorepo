@@ -1,0 +1,11 @@
+[package]
+name = "api_server_auth"
+edition.workspace = true
+version = "0.1.0"
+
+[dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal"] }
+auth = { path = "../auth" }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
