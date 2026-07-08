@@ -4,8 +4,8 @@
 [pool]
 max_queue_size = 1000
 max_retries = 3
-task_timeout = 60
-health_check_interval = 10
+task_timeout = "60s"
+health_check_interval = "10s"
 health_check_failure_threshold = 3
 max_concurrent_per_agent = 5
 drain_check_interval_secs = 5
