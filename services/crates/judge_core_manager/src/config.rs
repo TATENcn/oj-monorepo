@@ -1,76 +1,76 @@
 use std::{path::Path, time::Duration};
 
+use confide::confide;
 use config::{Config, ConfigError, Environment, File};
-use config_macro::config;
 use serde::Deserialize;
 
 const DEFAULT_CONFIG_PATH: &str = "./config/manager.toml";
 const CONFIG_PATH_ENV: &str = "JC_MANAGER_CONFIG_PATH";
 const ENV_PREFIX: &str = "JC_MANAGER";
 
-#[config]
-#[derive(Debug, Clone, Deserialize)]
+#[confide]
+#[derive(Clone, Deserialize)]
 pub struct PoolConfig {
-    #[config_val(default = 1000)]
+    #[confide(default = 1000)]
     pub max_queue_size: usize,
-    #[config_val(default = 3)]
+    #[confide(default = 3)]
     pub max_retries: u32,
-    #[config_val(default_secs = 45)]
+    #[confide(default_duration = "45s")]
     pub task_timeout: Duration,
-    #[config_val(default_secs = 5)]
+    #[confide(default_duration = "5s")]
     pub health_check_interval: Duration,
-    #[config_val(default = 3)]
+    #[confide(default = 3)]
     pub health_check_failure_threshold: u32,
-    #[config_val(default = 5)]
+    #[confide(default = 5)]
     pub max_concurrent_per_agent: u32,
-    #[config_val(default = 5)]
+    #[confide(default = 5)]
     pub drain_check_interval_secs: u64,
 }
 
-#[config]
-#[derive(Debug, Clone, Deserialize)]
+#[confide]
+#[derive(Clone, Deserialize)]
 pub struct ScalerConfig {
-    #[config_val(default = 2)]
+    #[confide(default = 2)]
     pub min_agents: usize,
-    #[config_val(default = 10)]
+    #[confide(default = 10)]
     pub max_agents: usize,
-    #[config_val(default = 0.3)]
+    #[confide(default = 0.3)]
     pub scale_down_utilization_pct: f64,
-    #[config_val(default = 5)]
+    #[confide(default = 5)]
     pub scale_up_cooldown_secs: u64,
-    #[config_val(default = 300)]
+    #[confide(default = 300)]
     pub scale_down_cooldown_secs: u64,
-    #[config_val(default = 10)]
+    #[confide(default = 10)]
     pub check_interval_secs: u64,
-    #[config_val(default = 30)]
+    #[confide(default = 30)]
     pub provision_time_secs: u64,
-    #[config_val(default = 3)]
+    #[confide(default = 3)]
     pub max_scale_up_batch: usize,
-    #[config_val(default = 3)]
+    #[confide(default = 3)]
     pub scale_down_confirm_ticks: u32,
-    #[config_val(default = 0.3)]
+    #[confide(default = 0.3)]
     pub ema_alpha: f64,
-    #[config_val(default = 5)]
+    #[confide(default = 5)]
     pub max_concurrent_per_agent: u32,
 }
 
-#[config]
-#[derive(Debug, Clone, Deserialize)]
+#[confide]
+#[derive(Clone, Deserialize)]
 pub struct ProvisionerConfig {
-    #[config_val(default = "judge-core".into())]
+    #[confide(default = "judge-core".to_string())]
     pub namespace: String,
-    #[config_val(default = "io.containerd.runc.v2".into())]
+    #[confide(default = "io.containerd.runc.v2".to_string())]
     pub runtime: String,
 }
 
-#[config]
-#[derive(Debug, Deserialize)]
+#[confide]
+#[derive(Deserialize)]
 pub struct ServerConfig {
-    #[config_val(default = "0.0.0.0:8000".into())]
+    #[confide(default = "0.0.0.0:8000".to_string())]
     pub bind_address: String,
-    #[config_val(default = "/run/containerd/containerd.sock".into())]
+    #[confide(default = "/run/containerd/containerd.sock".to_string())]
     pub containerd_socket: String,
-    #[config_val(default = "docker.io/library/judge-core:latest".into())]
+    #[confide(default = "docker.io/library/judge-core:latest".to_string())]
     pub image: String,
 }
 

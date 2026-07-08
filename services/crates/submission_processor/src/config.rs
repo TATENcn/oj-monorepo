@@ -1,34 +1,34 @@
+use confide::confide;
 use config::{Config, ConfigError, Environment, File};
-use config_macro::config;
 use serde::Deserialize;
 
 const DEFAULT_CONFIG_PATH: &str = "./config/processor.toml";
 const CONFIG_PATH_ENV: &str = "SP_CONFIG_PATH";
 const ENV_PREFIX: &str = "SP";
 
-#[config]
-#[derive(Debug, Deserialize)]
+#[confide]
+#[derive(Deserialize)]
 pub struct JudgeCoreConfig {
-    #[config_val(default = "http://localhost:8000".into())]
+    #[confide(default = "http://localhost:8000".to_string())]
     pub url: String,
-    #[serde(default)]
+    #[confide(default)]
     pub standalone: bool,
 }
 
-#[config]
-#[derive(Debug, Deserialize)]
+#[confide]
+#[derive(Deserialize)]
 pub struct RabbitMqConfig {
-    #[serde(default)]
+    #[confide(default)]
     pub url: String,
-    #[config_val(default = "online-judge.exchange".into())]
+    #[confide(default = "online-judge.exchange".to_string())]
     pub exchange_name: String,
-    #[config_val(default = "submit.queue".into())]
+    #[confide(default = "submit.queue".to_string())]
     pub submit_queue: String,
-    #[config_val(default = "submit".into())]
+    #[confide(default = "submit".to_string())]
     pub submit_route: String,
-    #[config_val(default = "result.queue".into())]
+    #[confide(default = "result.queue".to_string())]
     pub result_queue: String,
-    #[config_val(default = "result".into())]
+    #[confide(default = "result".to_string())]
     pub result_route: String,
 }
 

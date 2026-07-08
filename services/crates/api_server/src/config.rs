@@ -1,17 +1,18 @@
+use confide::confide;
 use config::{Config, ConfigError, Environment, File};
 use serde::{Deserialize, Serialize};
 
-#[config_macro::config]
-#[derive(Debug, Deserialize, Serialize)]
+#[confide]
+#[derive(Deserialize, Serialize)]
 pub struct ApiServerConfig {
-    #[serde(default)]
+    #[confide(default)]
     pub database: DatabaseConfig,
 }
 
-#[config_macro::config]
-#[derive(Debug, Deserialize, Serialize)]
+#[confide]
+#[derive(Deserialize, Serialize)]
 pub struct DatabaseConfig {
-    #[config_val(default = "postgresql://postgres:postgres@localhost:5432/taten".into())]
+    #[confide(default = "postgresql://postgres:postgres@localhost:5432/taten".to_string())]
     pub database_url: String,
 }
 
