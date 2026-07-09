@@ -6,4 +6,8 @@ use tokio::io;
 pub enum AuthApiServerError {
     #[error(transparent)]
     Io(#[from] io::Error),
+    #[error(transparent)]
+    Config(#[from] ::config::ConfigError),
+    #[error(transparent)]
+    Db(#[from] sea_orm::DbErr),
 }

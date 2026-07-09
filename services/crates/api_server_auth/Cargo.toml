@@ -4,7 +4,7 @@ edition.workspace = true
 version = "0.1.0"
 
 [dependencies]
-tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal", "fs"] }
 auth = { path = "../auth" }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -12,3 +12,5 @@ thiserror = { workspace = true }
 serde = { workspace = true }
 confide = { workspace = true }
 config = { workspace = true }
+sea-orm = { workspace = true, features = ["macros", "sqlx-postgres", "runtime-tokio-rustls"] }
+axum = { workspace = true }

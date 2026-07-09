@@ -148,8 +148,10 @@ name = "api_server_auth"
 version = "0.1.0"
 dependencies = [
  "auth",
+ "axum",
  "confide",
  "config",
+ "sea-orm",
  "serde",
  "thiserror 2.0.18",
  "tokio",
