@@ -77,16 +77,13 @@ async fn jwks_handler(State(state): State<Arc<AppState>>) -> Result<Json<JwksRes
 }
 
 /// Extract the raw 32-byte Ed25519 public key from a PEM-encoded SPKI document
-fn extract_ed25519_public_key(pem: &[u8]) -> Option<Vec<u8>> {
-    let pem_str = std::str::from_utf8(pem).ok()?;
+fn extract_ed25519_public_key(pem_bytes: &[u8]) -> Option<Vec<u8>> {
+    let der = pem::parse(pem_bytes).ok()?.into_contents();
 
-    let body = pem_str.lines().filter(|line| !line.starts_with("-----")).collect::<Vec<&str>>().join("");
-    let der = base64::engine::general_purpose::STANDARD.decode(&body).ok()?;
-
-    if der.len() < 32 {
-        return None;
+    match der.len() >= 32 {
+        true => Some(der[der.len() - 32..].to_vec()),
+        false => None,
     }
-    Some(der[der.len() - 32..].to_vec())
 }
 
 async fn token_handler(State(state): State<Arc<AppState>>, Form(body): Form<TokenRequest>) -> Result<Json<TokenResponse>, HandlerError> {
