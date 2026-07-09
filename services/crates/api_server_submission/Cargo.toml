@@ -1,0 +1,10 @@
+[package]
+name = "api_server_submission"
+edition.workspace = true
+version = "0.1.0"
+
+[dependencies]
+tokio = { workspace = true, features = ["net", "signal", "rt-multi-thread", "macros"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+thiserror = { workspace = true }
