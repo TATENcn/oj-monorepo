@@ -14,6 +14,8 @@ use crate::{
     router::{self, ProxyError},
 };
 
+type AuthError = Box<Response<BoxBody<Bytes, hyper::Error>>>;
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case", tag = "status")]
 enum Health {
@@ -121,7 +123,7 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
 
             let req = match apply_auth(req, &matched.config.auth, &jwks) {
                 Ok(req) => req,
-                Err(resp) => return Ok(resp),
+                Err(resp) => return Ok(*resp),
             };
 
             match handle_request(req, matched, timeout).await {
@@ -135,10 +137,10 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
     }
 }
 
-fn parse_user_id(sub: &str) -> Result<hyper::header::HeaderValue, Response<BoxBody<Bytes, hyper::Error>>> {
+fn parse_user_id(sub: &str) -> Result<hyper::header::HeaderValue, AuthError> {
     Uuid::parse_str(sub)
         .map(|id| id.to_string().parse().expect("UUID string is always a valid header value"))
-        .map_err(|_| error_response(StatusCode::UNAUTHORIZED, "invalid token subject"))
+        .map_err(|_| error_response_boxed(StatusCode::UNAUTHORIZED, "invalid token subject"))
 }
 
 fn error_response(status: StatusCode, msg: &str) -> Response<BoxBody<Bytes, hyper::Error>> {
@@ -149,11 +151,7 @@ fn error_response(status: StatusCode, msg: &str) -> Response<BoxBody<Bytes, hype
 }
 
 /// Apply authentication based on the route's level
-fn apply_auth(
-    mut req: Request<Incoming>,
-    level: &AuthenticationLevel,
-    jwks: &JwksManager,
-) -> Result<Request<Incoming>, Response<BoxBody<Bytes, hyper::Error>>> {
+fn apply_auth(mut req: Request<Incoming>, level: &AuthenticationLevel, jwks: &JwksManager) -> Result<Request<Incoming>, AuthError> {
     match level {
         AuthenticationLevel::None => Ok(req),
         AuthenticationLevel::BypassAndStrip => {
@@ -177,19 +175,23 @@ fn apply_auth(
     }
 }
 
-fn verify_token(auth_header: Option<&hyper::header::HeaderValue>, jwks: &JwksManager) -> Result<auth::token::Claims, Response<BoxBody<Bytes, hyper::Error>>> {
-    let header_val = auth_header.ok_or_else(|| error_response(StatusCode::UNAUTHORIZED, "missing authorization header"))?;
+fn verify_token(auth_header: Option<&hyper::header::HeaderValue>, jwks: &JwksManager) -> Result<auth::token::Claims, AuthError> {
+    let header_val = auth_header.ok_or_else(|| error_response_boxed(StatusCode::UNAUTHORIZED, "missing authorization header"))?;
 
     let header_str = header_val
         .to_str()
-        .map_err(|_| error_response(StatusCode::UNAUTHORIZED, "invalid authorization header"))?;
+        .map_err(|_| error_response_boxed(StatusCode::UNAUTHORIZED, "invalid authorization header"))?;
 
     let token = header_str
         .strip_prefix("Bearer ")
-        .ok_or_else(|| error_response(StatusCode::UNAUTHORIZED, "invalid authorization header"))?;
+        .ok_or_else(|| error_response_boxed(StatusCode::UNAUTHORIZED, "invalid authorization header"))?;
 
     jwks.verify(token).map_err(|e| {
         error!(?e, "JWT verification failed");
-        error_response(StatusCode::UNAUTHORIZED, &e.to_string())
+        error_response_boxed(StatusCode::UNAUTHORIZED, &e.to_string())
     })
+}
+
+fn error_response_boxed(status: StatusCode, msg: &str) -> AuthError {
+    Box::new(error_response(status, msg))
 }
