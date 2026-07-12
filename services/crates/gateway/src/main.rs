@@ -1,15 +1,17 @@
 use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
 
+use bytes::Bytes;
 use gateway::{config::GatewayConfig, jwks::JwksManager, rate_limiter::memory::InMemoryRateLimiter, service::ProxyService};
-use http_body_util::combinators::BoxBody;
+use http_body_util::{Full, combinators::BoxBody};
 use hyper::service::Service;
-use hyper::{Request, Response, body::Incoming};
+use hyper::{Request, Response, StatusCode, body::Incoming};
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
+use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 #[tokio::main]
 async fn main() -> Result<(), GatewayError> {
@@ -22,6 +24,7 @@ async fn main() -> Result<(), GatewayError> {
 
     // REVIEW: Make more choices, but in-memory now
     let rate_limiter = Arc::new(InMemoryRateLimiter::new(Duration::from_secs(300)));
+    let connection_semaphore = Arc::new(Semaphore::new(config.max_connections));
 
     let service = Arc::new(ProxyService::new(
         config.routes,
@@ -30,7 +33,7 @@ async fn main() -> Result<(), GatewayError> {
         rate_limiter,
     ));
 
-    info!(addr = %config.addr, "gateway listening");
+    info!(addr = %config.addr, max_connections = config.max_connections, "gateway listening");
 
     let mut handles = JoinSet::new();
 
@@ -38,8 +41,19 @@ async fn main() -> Result<(), GatewayError> {
         tokio::select! {
             result = listener.accept() => {
                 let (stream, remote) = result?;
-                info!(?remote, "accepted connection");
-                handles.spawn(handle_connection(stream, service.clone()));
+                match connection_semaphore.clone().try_acquire_owned() {
+                    Ok(_permit) => {
+                        info!(?remote, "accepted connection");
+                        let svc = service.clone();
+                        handles.spawn(async move {
+                            handle_connection(stream, svc).await;
+                        });
+                    }
+                    Err(_) => {
+                        warn!(?remote, "connection rejected: max connections reached");
+                        handles.spawn(send_503(stream));
+                    }
+                }
             },
             _ = tokio::signal::ctrl_c() => {
                 info!("received SIGINT");
@@ -51,11 +65,22 @@ async fn main() -> Result<(), GatewayError> {
     // Release the port immediately
     drop(listener);
 
-    // Wait for in-flight connections
-    info!(pending = handles.len(), "waiting for in-flight connections to drain");
-    while handles.join_next().await.is_some() {}
+    // Wait for in-flight connections with a timeout
+    let drain_timeout = Duration::from_secs(config.drain_timeout_secs);
+    info!(
+        pending = handles.len(),
+        timeout_secs = config.drain_timeout_secs,
+        "waiting for in-flight connections to drain"
+    );
+    let drain_result = tokio::time::timeout(drain_timeout, async { while handles.join_next().await.is_some() {} }).await;
 
-    info!("shutdown complete");
+    match drain_result {
+        Ok(()) => info!("all connections drained, shutdown complete"),
+        Err(_) => {
+            let remaining = handles.len();
+            error!(remaining, "drain timed out, forcing shutdown");
+        }
+    }
     Ok(())
 }
 
@@ -74,6 +99,20 @@ impl Service<Request<Incoming>> for ConnectionService {
         req.extensions_mut().insert(self.peer_addr);
         self.inner.call(req)
     }
+}
+
+async fn send_503(stream: TcpStream) {
+    let svc = hyper::service::service_fn(|_req| async {
+        Ok::<_, hyper::http::Error>(
+            Response::builder()
+                .status(StatusCode::SERVICE_UNAVAILABLE)
+                .header(http::header::CONTENT_TYPE, "text/plain")
+                .header(http::header::CONNECTION, "close")
+                .body(Full::new(Bytes::from_static(b"503 Service Unavailable\n")))
+                .unwrap(),
+        )
+    });
+    let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(stream), svc).await;
 }
 
 async fn handle_connection(stream: TcpStream, service: Arc<ProxyService>) {

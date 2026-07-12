@@ -55,6 +55,8 @@ pub struct GatewayConfig {
     pub jwks_url: String,
     pub addr: String,
     pub upstream_timeout_secs: u64,
+    pub max_connections: usize, // Uses [`usize`] for [`Semaphore`]
+    pub drain_timeout_secs: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -108,6 +110,18 @@ impl GatewayConfig {
         if self.upstream_timeout_secs == 0 {
             errors.push(FieldError::Invalid {
                 field: "upstream_timeout_secs".into(),
+                message: "must be > 0",
+            });
+        }
+        if self.max_connections == 0 {
+            errors.push(FieldError::Invalid {
+                field: "max_connections".into(),
+                message: "must be > 0",
+            });
+        }
+        if self.drain_timeout_secs == 0 {
+            errors.push(FieldError::Invalid {
+                field: "drain_timeout_secs".into(),
                 message: "must be > 0",
             });
         }
