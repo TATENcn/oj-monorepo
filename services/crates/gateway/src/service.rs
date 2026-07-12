@@ -71,7 +71,7 @@ async fn handle_request(
 }
 
 fn into_boxed_body(bytes: Bytes) -> BoxBody<Bytes, hyper::Error> {
-    Full::new(bytes).map_err(|_| unreachable!()).boxed()
+    Full::new(bytes).map_err(|e: std::convert::Infallible| match e {}).boxed()
 }
 
 impl hyper::service::Service<Request<Incoming>> for ProxyService {
@@ -86,7 +86,7 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
         let rate_limiter = self.rate_limiter.clone();
 
         Box::pin(async move {
-            let path = req.uri().path().to_string();
+            let path = req.uri().path();
 
             // REVIEW: Should we use a configuration field for this?
             // Health check
@@ -99,7 +99,7 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
                     .expect("building healthcheck response"));
             }
 
-            let matched = match router::match_route(&routes, &path) {
+            let matched = match router::match_route(&routes, path) {
                 Some(m) => m,
                 None => return Ok(error_response(StatusCode::NOT_FOUND, "no route matched")),
             };
@@ -108,7 +108,12 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
             let peer_addr = req.extensions().get::<SocketAddr>().copied();
             if let Some(client_ip) = rate_limiter::client_ip(req.headers(), peer_addr) {
                 let cfg = &matched.config.rate_limit;
-                let key = format!("{}:{}", matched.config.path, client_ip);
+
+                let mut key = String::with_capacity(matched.config.path.len() + 1 + client_ip.len());
+                key.push_str(&matched.config.path);
+                key.push(':');
+                key.push_str(&client_ip);
+
                 if !rate_limiter.check(&key, cfg.per_sec, cfg.burst) {
                     return Ok(error_response(StatusCode::TOO_MANY_REQUESTS, "rate limit exceeded"));
                 }
@@ -139,7 +144,7 @@ fn parse_user_id(sub: &str) -> Result<hyper::header::HeaderValue, Response<BoxBo
 fn error_response(status: StatusCode, msg: &str) -> Response<BoxBody<Bytes, hyper::Error>> {
     Response::builder()
         .status(status)
-        .body(into_boxed_body(Bytes::from(msg.to_string())))
+        .body(into_boxed_body(Bytes::copy_from_slice(msg.as_bytes())))
         .expect("building error response")
 }
 
