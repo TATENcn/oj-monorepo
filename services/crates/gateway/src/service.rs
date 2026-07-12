@@ -35,10 +35,10 @@ impl Health {
 }
 
 // TODO: That's so ugly, i think we should do something instead of hard-encoding this
-impl Into<Bytes> for Health {
-    fn into(self) -> Bytes {
-        match self {
-            Health::Ok => Bytes::from("{\"status\":\"ok\"}"),
+impl From<Health> for Bytes {
+    fn from(val: Health) -> Self {
+        match val {
+            Health::Ok => Bytes::from_static(b"{\"status\":\"ok\"}"),
             Health::Degraded { reason } => Bytes::from(format!("{{\"status\":\"degraded\",\"reason\":\"{}\"}}", reason)),
         }
     }
