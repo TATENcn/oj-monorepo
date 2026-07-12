@@ -91,10 +91,12 @@ impl JwksManager {
 
     /// Verify a JWT token
     pub fn verify(&self, token: &str) -> Result<auth::token::Claims, JwksError> {
+        let header = jsonwebtoken::decode_header(token).map_err(|e| JwksError::MalformedToken(format!("failed to decode JWT header: {e}")))?;
+
         let raw_key = {
             let cache = self.cache.read().unwrap();
             let cache = cache.as_ref().ok_or(JwksError::KeysNotLoaded)?;
-            Self::resolve_key(cache, token)?
+            Self::lookup_key(cache, &header)?
         };
 
         let data = auth::token::verify_with_raw_key(token, auth::token::TokenType::Access, &raw_key)?;
@@ -102,11 +104,9 @@ impl JwksManager {
         Ok(data.claims)
     }
 
-    fn resolve_key(cache: &JwksCache, token: &str) -> Result<Vec<u8>, JwksError> {
-        let header = jsonwebtoken::decode_header(token).map_err(|e| JwksError::MalformedToken(format!("failed to decode JWT header: {e}")))?;
-
-        match header.kid {
-            Some(kid) => cache.keys.get(&kid).map(|k| k.raw_key.clone()).ok_or_else(|| JwksError::UnknownKid(kid)),
+    fn lookup_key(cache: &JwksCache, header: &jsonwebtoken::Header) -> Result<Vec<u8>, JwksError> {
+        match &header.kid {
+            Some(kid) => cache.keys.get(kid).map(|k| k.raw_key.clone()).ok_or_else(|| JwksError::UnknownKid(kid.clone())),
             None => {
                 if cache.keys.len() == 1 {
                     Ok(cache.keys.values().next().unwrap().raw_key.clone())
