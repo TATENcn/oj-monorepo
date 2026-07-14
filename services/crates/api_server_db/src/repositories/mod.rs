@@ -16,8 +16,6 @@ macro_rules! repo_struct {
     };
 }
 
-use sea_orm::DbErr;
-
 #[derive(Debug, thiserror::Error)]
 pub enum RepoError {
     #[error("not found")]
@@ -25,5 +23,5 @@ pub enum RepoError {
     #[error("forbidden")]
     Forbidden,
     #[error(transparent)]
-    Internal(#[from] DbErr),
+    Internal(#[from] sea_orm::DbErr),
 }
