@@ -1,23 +1,20 @@
-use sea_orm::{ColumnTrait, DatabaseConnection, EntityTrait, QueryFilter, TransactionTrait};
+use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, TransactionTrait};
 use uuid::Uuid;
 
-use crate::models::{
-    enums, http,
-    problems::{self, Entity as ProblemEntity},
-    test_cases,
+use crate::{
+    models::{
+        enums, http,
+        problems::{self, Entity as ProblemEntity},
+        test_cases,
+    },
+    repo_struct,
 };
 
 use super::RepoError;
 
-pub struct TestCasesRepo {
-    db: DatabaseConnection,
-}
+repo_struct!(TestCasesRepo);
 
 impl TestCasesRepo {
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
-    }
-
     pub async fn get_by_problem_id(&self, problem_id: Uuid, user_id: Uuid) -> Result<Vec<http::TestCaseSuccessfulResponse>, RepoError> {
         let problem = ProblemEntity::find_by_id(problem_id)
             .filter(problems::Column::DeletedAt.is_null())

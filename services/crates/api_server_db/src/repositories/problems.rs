@@ -2,28 +2,25 @@ use chrono::Utc;
 use sea_orm::{
     ActiveModelTrait,
     ActiveValue::Set,
-    ColumnTrait, DatabaseConnection, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
+    ColumnTrait, EntityTrait, PaginatorTrait, QueryFilter, QueryOrder, QuerySelect, TransactionTrait,
     sea_query::{BinOper, Expr},
 };
 use uuid::Uuid;
 
-use crate::models::{
-    http,
-    problems::{self, Entity as ProblemEntity},
-    problems_tags,
+use crate::{
+    models::{
+        http,
+        problems::{self, Entity as ProblemEntity},
+        problems_tags,
+    },
+    repo_struct,
 };
 
 use super::RepoError;
 
-pub struct ProblemsRepo {
-    db: DatabaseConnection,
-}
+repo_struct!(ProblemsRepo);
 
 impl ProblemsRepo {
-    pub fn new(db: DatabaseConnection) -> Self {
-        Self { db }
-    }
-
     pub async fn list(&self, queries: http::ListProblemQueries) -> Result<http::ListProblemResponse, RepoError> {
         let limit = queries.limit.unwrap_or(20).min(100);
         let page = queries.page.unwrap_or(0);
