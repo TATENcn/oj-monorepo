@@ -95,8 +95,11 @@ impl SubmissionRepo {
     /// - [`None`] if the submission doesn't exist
     /// - [`Some(Ok("pending"))`] if still pending
     /// - [`Some(Ok(VerdictResponse))`] if completed
-    pub async fn get(&self, id: Uuid) -> Result<Option<SubmissionResult>, RepoError> {
-        let submission = SubmissionEntity::find_by_id(id).one(&self.db).await?;
+    pub async fn get(&self, user_id: Uuid, id: Uuid) -> Result<Option<SubmissionResult>, RepoError> {
+        let submission = SubmissionEntity::find_by_id(id)
+            .filter(submissions::Column::UserId.eq(user_id))
+            .one(&self.db)
+            .await?;
 
         let Some(submission) = submission else {
             return Ok(None);
