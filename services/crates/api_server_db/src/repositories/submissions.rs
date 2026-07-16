@@ -26,7 +26,7 @@ impl SubmissionRepo {
         user_id: Uuid,
         source_code: String,
         language: AcceptableLanguage,
-    ) -> Result<Option<(Uuid, VerdictTask)>, RepoError> {
+    ) -> Result<(Uuid, VerdictTask), RepoError> {
         let problem = ProblemEntity::find_by_id(problem_id)
             .filter(problems::Column::DeletedAt.is_null())
             .one(&self.db)
@@ -73,7 +73,7 @@ impl SubmissionRepo {
             stop_on_first_error: true,
         };
 
-        Ok(Some((submission_id, verdict_task)))
+        Ok((submission_id, verdict_task))
     }
 
     pub async fn mark_completed(&self, submission_id: Uuid, result: &VerdictResponse) -> Result<(), RepoError> {
