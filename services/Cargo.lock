@@ -181,10 +181,15 @@ dependencies = [
 name = "api_server_submission"
 version = "0.1.0"
 dependencies = [
+ "api_server_db",
+ "auth",
+ "axum",
+ "serde",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
