@@ -19,6 +19,7 @@ axum = "0.8.9"
 uuid = "1.23.4"
 chrono = "0.4.45"
 config = "0.15.24"
+serde_json = "1.0.150"
 
 confide = "0.1"
 judge_core_shared = { path = "./crates/judge_core_shared" }
