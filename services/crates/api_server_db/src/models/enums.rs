@@ -36,3 +36,19 @@ pub enum CaseType {
     #[serde(rename = "example")]
     Example = 1,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "u64", db_type = "Integer")]
+pub enum SubmissionStatus {
+    #[serde(rename = "pending")]
+    Pending = 0,
+    #[serde(rename = "completed")]
+    Completed = 1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, DeriveActiveEnum, Serialize, Deserialize)]
+#[sea_orm(rs_type = "u64", db_type = "Integer")]
+pub enum AcceptableLanguage {
+    #[serde(rename = "Cpp")]
+    Cpp = 0,
+}
