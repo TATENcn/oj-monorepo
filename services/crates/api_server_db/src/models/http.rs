@@ -123,7 +123,7 @@ pub struct CreateProblemResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(tag = "status", rename_all = "camelCase")]
 pub enum SubmissionResult {
     Pending,
     Completed(judge_core_shared::models::http::VerdictResponse),
