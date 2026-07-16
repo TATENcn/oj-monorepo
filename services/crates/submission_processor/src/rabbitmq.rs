@@ -12,8 +12,6 @@ pub struct RabbitMqTopology {
     pub exchange_name: String,
     pub submit_queue: String,
     pub submit_route: String,
-    pub result_queue: String,
-    pub result_route: String,
 }
 
 impl From<&RabbitMqConfig> for RabbitMqTopology {
@@ -22,8 +20,6 @@ impl From<&RabbitMqConfig> for RabbitMqTopology {
             exchange_name: config.exchange_name.clone(),
             submit_queue: config.submit_queue.clone(),
             submit_route: config.submit_route.clone(),
-            result_queue: config.result_queue.clone(),
-            result_route: config.result_route.clone(),
         }
     }
 }
@@ -62,26 +58,6 @@ pub async fn init(url: &str, topology: &RabbitMqTopology) -> Result<Connection, 
             topology.submit_queue.clone().into(),
             topology.exchange_name.clone().into(),
             topology.submit_route.clone().into(),
-            QueueBindOptions::default(),
-            FieldTable::default(),
-        )
-        .await?;
-
-    channel
-        .queue_declare(
-            topology.result_queue.clone().into(),
-            QueueDeclareOptions {
-                durable: true,
-                ..Default::default()
-            },
-            FieldTable::default(),
-        )
-        .await?;
-    channel
-        .queue_bind(
-            topology.result_queue.clone().into(),
-            topology.exchange_name.clone().into(),
-            topology.result_route.clone().into(),
             QueueBindOptions::default(),
             FieldTable::default(),
         )

@@ -17,6 +17,13 @@ pub struct JudgeCoreConfig {
 
 #[confide]
 #[derive(Deserialize)]
+pub struct DatabaseConfig {
+    #[confide(default)]
+    pub url: String,
+}
+
+#[confide]
+#[derive(Deserialize)]
 pub struct RabbitMqConfig {
     #[confide(default)]
     pub url: String,
@@ -26,14 +33,12 @@ pub struct RabbitMqConfig {
     pub submit_queue: String,
     #[confide(default = "submit".to_string())]
     pub submit_route: String,
-    #[confide(default = "result.queue".to_string())]
-    pub result_queue: String,
-    #[confide(default = "result".to_string())]
-    pub result_route: String,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ProcessorConfig {
+    #[serde(default)]
+    pub database: DatabaseConfig,
     #[serde(default)]
     pub judge_core: JudgeCoreConfig,
     #[serde(default)]

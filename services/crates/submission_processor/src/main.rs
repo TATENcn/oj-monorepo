@@ -3,17 +3,17 @@ mod error;
 mod message;
 mod rabbitmq;
 
+use api_server_db::repositories::{connect_db, connect_repo, submissions::SubmissionRepo};
 use config::ProcessorConfig;
 use error::Error;
 use futures_util::StreamExt;
 use judge_core_sdk::JudgeCoreClient;
 use judge_core_shared::models::http::VerdictResponse;
 use lapin::{
-    BasicProperties, Channel,
-    options::{BasicAckOptions, BasicConsumeOptions, BasicPublishOptions},
+    options::{BasicAckOptions, BasicConsumeOptions},
     types::FieldTable,
 };
-use message::{ResultMessage, SubmitMessage};
+use message::SubmitMessage;
 use rabbitmq::RabbitMqTopology;
 use tracing::{error, info};
 
@@ -30,12 +30,13 @@ async fn main() -> Result<(), Error> {
     let channel = conn.create_channel().await?;
     let client = JudgeCoreClient::new(&config.judge_core.url, config.judge_core.standalone);
 
+    let db = connect_db(&config.database.url).await?;
+    let repo = connect_repo::<SubmissionRepo>(db);
+
     if !config.judge_core.standalone {
         client.acceptable().await?;
     }
     info!("judge-core available");
-
-    let publish_channel = conn.create_channel().await?;
 
     let mut consumer = channel
         .basic_consume(
@@ -55,10 +56,9 @@ async fn main() -> Result<(), Error> {
                     Some(Ok(delivery)) => {
                         let submission_id = process_message(
                             &client,
-                            &publish_channel,
+                            &repo,
                             &delivery.data,
                             &delivery.acker,
-                            &topology,
                         )
                         .await;
 
@@ -92,13 +92,7 @@ async fn main() -> Result<(), Error> {
 /// # Returns
 /// Some(submission_id) on success
 /// None on failure (message not acked, it will be redelivered)
-async fn process_message(
-    client: &JudgeCoreClient,
-    publish_channel: &Channel,
-    body: &[u8],
-    acker: &lapin::Acker,
-    topology: &RabbitMqTopology,
-) -> Option<String> {
+async fn process_message(client: &JudgeCoreClient, repo: &SubmissionRepo, body: &[u8], acker: &lapin::Acker) -> Option<String> {
     let submit_msg: SubmitMessage = match serde_json::from_slice(body) {
         Ok(m) => m,
         Err(e) => {
@@ -112,23 +106,16 @@ async fn process_message(
 
     match client.task_submit(&submit_msg.task).await {
         Ok(task_result) => {
-            let result_msg = ResultMessage {
-                submission_id: submission_id.clone(),
-                result: VerdictResponse::from(task_result),
-            };
-            let payload = serde_json::to_vec(&result_msg).unwrap_or_default();
+            let verdict = VerdictResponse::from(task_result);
 
-            if let Err(e) = publish_channel
-                .basic_publish(
-                    topology.exchange_name.clone().into(),
-                    topology.result_route.clone().into(),
-                    BasicPublishOptions::default(),
-                    &payload,
-                    BasicProperties::default(),
-                )
-                .await
-            {
-                error!(submission_id = %submission_id, error = %e, "failed to publish result");
+            let Ok(submission_uuid) = uuid::Uuid::parse_str(&submission_id) else {
+                error!(%submission_id, "invalid submission id UUID");
+                acker.ack(BasicAckOptions::default()).await.ok();
+                return None;
+            };
+
+            if let Err(e) = repo.mark_completed(submission_uuid, &verdict).await {
+                error!(%submission_id, ?e, "failed to update submission in DB");
                 return None;
             }
 

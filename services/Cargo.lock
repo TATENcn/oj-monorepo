@@ -4897,6 +4897,7 @@ dependencies = [
 name = "submission_processor"
 version = "0.1.0"
 dependencies = [
+ "api_server_db",
  "confide",
  "config",
  "futures-util",
@@ -4909,6 +4910,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]

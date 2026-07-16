@@ -16,4 +16,6 @@ thiserror = { workspace = true }
 config = { workspace = true }
 judge_core_sdk = { path = "../judge_core_sdk" }
 judge_core_shared = { path = "../judge_core_shared" }
+api_server_db = { path = "../api_server_db" }
 confide = { workspace = true }
+uuid = { workspace = true }
