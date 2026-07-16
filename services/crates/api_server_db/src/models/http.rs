@@ -122,6 +122,13 @@ pub struct CreateProblemResponse {
     pub id: Uuid,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SubmissionResult {
+    Pending,
+    Completed(judge_core_shared::models::http::VerdictResponse),
+}
+
 /// ### Accepts
 /// - Absent key => [`None`]
 /// - Single value (`?tag=id`) => [`Some(vec![id])`]

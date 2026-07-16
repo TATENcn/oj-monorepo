@@ -1,6 +1,7 @@
 use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr};
 
 pub mod problems;
+pub mod submissions;
 pub mod test_cases;
 
 #[macro_export]
