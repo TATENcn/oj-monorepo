@@ -52,3 +52,14 @@ pub enum AcceptableLanguage {
     #[serde(rename = "Cpp")]
     Cpp = 0,
 }
+
+impl std::str::FromStr for AcceptableLanguage {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_string().as_str() {
+            "cpp" => Ok(Self::Cpp),
+            _ => Err(()),
+        }
+    }
+}
