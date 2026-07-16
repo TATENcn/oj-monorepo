@@ -60,14 +60,12 @@
 > Author can review hidden cases
 
 ```plain
-{
-    cases: array[{
-        id: uuid;
-        input: string;
-        output: string;
-        type: enum[testCaseType];
-    }];
-}
+array[{
+    id: uuid;
+    input: string;
+    output: string;
+    type: enum[testCaseType];
+}]
 ```
 
 ### Get problem details response
