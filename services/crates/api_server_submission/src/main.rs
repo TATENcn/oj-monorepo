@@ -17,7 +17,7 @@ async fn main() -> Result<(), ApiServerSubmissionError> {
     let config = SubmissionConfig::load()?;
     info!(?config, "configuration loaded");
 
-    let listener = TcpListener::bind("localhost:12547").await?;
+    let listener = TcpListener::bind("localhost:9002").await?;
 
     let db_connection = connect_db(&config.database.url).await?;
 
@@ -32,7 +32,7 @@ async fn main() -> Result<(), ApiServerSubmissionError> {
     };
     let router = router(Arc::new(state));
 
-    info!("HTTP server listening on {}", "localhost:12547");
+    info!("HTTP server listening on {}", "localhost:9002");
     info!("submission api server ready");
 
     service_utils::serve(listener, router).await?;

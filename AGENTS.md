@@ -16,7 +16,7 @@ onlinejudge/
 │   ├── auth/                  # Ed25519 JWT sign/verify + password hashing
 │   ├── gateway/               # Reverse proxy with rate limiting & auth
 │   ├── judge_core_agent/      # Sandboxed compile/run, Unix socket server
-│   ├── judge_core_manager/    # Agent pool + autoscaler + HTTP router (port 8000)
+│   ├── judge_core_manager/    # Agent pool + autoscaler + HTTP router
 │   ├── judge_core_sdk/        # Rust HTTP client for judge_core_manager
 │   ├── judge_core_shared/     # Shared models, HTTP types, wire protocol, error codes
 │   ├── judge_core_standalone/ # Single-binary agent, HTTP /task endpoint
@@ -49,7 +49,7 @@ cd services && cargo run -p judge_core_standalone
 **Submission processor:**
 
 ```fish
-cd services && RABBIT_MQ_URL=amqp://... JUDGE_CORE_URL=http://localhost:8000 cargo run -p submission_processor
+cd services && RABBIT_MQ_URL=amqp://... JUDGE_CORE_URL=http://... cargo run -p submission_processor
 ```
 
 ## Architecture
@@ -58,7 +58,7 @@ cd services && RABBIT_MQ_URL=amqp://... JUDGE_CORE_URL=http://localhost:8000 car
 
 ```
 API (POST /submissions) → RabbitMQ (submit.queue)
-  → submission_processor → POST /task to manager (port 8000)
+  → submission_processor → POST /task to manager
   → manager dispatches to agent via Unix socket
   → agent sandbox-compiles and runs
   → result flows back through RabbitMQ (result.queue)

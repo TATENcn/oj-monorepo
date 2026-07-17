@@ -18,7 +18,7 @@ async fn main() -> Result<(), ApiServerError> {
     info!(?config, "configuration loaded");
     let connection = connect_db(&config.database.database_url).await?;
 
-    let listener = TcpListener::bind("localhost:3080").await?;
+    let listener = TcpListener::bind("localhost:9000").await?;
     let api_state = Arc::new(ApiServerState {
         problems_repo: connect_repo(connection.clone()),
         test_cases_repo: connect_repo(connection.clone()),

@@ -30,7 +30,7 @@ async fn main() -> Result<(), AuthApiServerError> {
     let router = router(auth_state.clone()).nest("/.well-known", jwks_router(auth_state));
     info!("router initialized");
 
-    let listener = TcpListener::bind("localhost:18938").await?;
+    let listener = TcpListener::bind("localhost:9001").await?;
     info!("service available");
 
     service_utils::serve(listener, router).await?;

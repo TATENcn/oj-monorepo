@@ -1,4 +1,4 @@
-use api_server_db::{repositories::RepoError, DbErr};
+use api_server_db::{DbErr, repositories::RepoError};
 use judge_core_sdk::JudgeCoreError;
 use thiserror::Error;
 
