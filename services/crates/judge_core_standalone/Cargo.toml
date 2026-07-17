@@ -5,7 +5,7 @@ edition.workspace = true
 [dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "signal"] }
 judge_core_shared = { workspace = true }
-judge_core_agent = { path = "../judge_core_agent" }
+judge_core_agent = { workspace = true }
 axum = { workspace = true }
 tower-http = { workspace = true, features = ["trace"] }
 tracing = { workspace = true }

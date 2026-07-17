@@ -15,7 +15,7 @@ http = "1.4.2"
 bytes = "1.12.0"
 hyper-util = { version = "0.1.20", features = ["client", "client-legacy", "http1", "http2", "server", "tokio"] }
 http-body-util = "0.1.3"
-auth = { path = "../auth" }
+auth = { workspace = true }
 jsonwebtoken = "10.4.0"
 base64 = "0.22.1"
 serde_json = "1.0.149"

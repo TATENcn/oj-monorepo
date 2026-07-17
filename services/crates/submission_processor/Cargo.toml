@@ -14,8 +14,8 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 config = { workspace = true }
-judge_core_sdk = { path = "../judge_core_sdk" }
-judge_core_shared = { path = "../judge_core_shared" }
-api_server_db = { path = "../api_server_db" }
+judge_core_sdk = { workspace = true }
+judge_core_shared = { workspace = true }
+api_server_db = { workspace = true }
 confide = { workspace = true }
 uuid = { workspace = true }

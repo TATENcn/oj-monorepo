@@ -9,10 +9,10 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 thiserror = { workspace = true }
 axum = { workspace = true }
-api_server_db = { path = "../api_server_db" }
+api_server_db = { workspace = true }
 uuid = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-auth = { path = "../auth" }
+auth = { workspace = true }
 lapin = "4.10"
 serde_json = { workspace = true }
 judge_core_shared = { workspace = true }
