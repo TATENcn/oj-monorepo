@@ -11,8 +11,8 @@ uuid = { workspace = true, features = ["v7", "serde"] }
 chrono = { workspace = true }
 argon2 = "0.6.0-rc.8"
 jsonwebtoken = "10.4.0"
-ed25519-dalek = { version = "2.2.0", features = ["pkcs8"] }
+ed25519-dalek = { version = "3.0.0", features = ["alloc", "pkcs8"] }
 serde = { workspace = true }
 base64 = "0.22.1"
-sha2 = "0.10.8"
+sha2 = "0.11.0"
 pem = "3.0.6"
