@@ -1,0 +1,9 @@
+[package]
+name = "service_utils"
+edition.workspace = true
+version = "0.1.0"
+
+[dependencies]
+tokio = { workspace = true, features = ["net", "signal"] }
+axum = { workspace = true }
+tracing = { workspace = true }

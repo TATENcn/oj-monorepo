@@ -28,3 +28,4 @@ judge_core_agent = { path = "./crates/judge_core_agent" }
 judge_core_sdk = { path = "./crates/judge_core_sdk" }
 auth = { path = "./crates/auth" }
 api_server_db = { path = "./crates/api_server_db" }
+service_utils = { path = "./crates/service_utils" }
