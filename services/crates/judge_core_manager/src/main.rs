@@ -39,12 +39,7 @@ async fn main() -> Result<(), ManagerError> {
     info!("HTTP server listening on {}", config.server.bind_address);
     info!("manager ready");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c().await.expect("failed to listen for ctrl_c");
-            info!("shutdown signal received, stopping HTTP server");
-        })
-        .await?;
+    service_utils::serve(listener, app).await?;
 
     info!("draining task pool");
     pool.shutdown(Duration::from_secs(60)).await?;

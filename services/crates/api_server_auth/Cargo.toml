@@ -14,3 +14,4 @@ confide = { workspace = true }
 config = { workspace = true }
 sea-orm = { workspace = true, features = ["macros", "sqlx-postgres", "runtime-tokio-rustls"] }
 axum = { workspace = true }
+service_utils = { workspace = true }

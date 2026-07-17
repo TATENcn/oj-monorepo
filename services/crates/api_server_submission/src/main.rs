@@ -35,12 +35,7 @@ async fn main() -> Result<(), ApiServerSubmissionError> {
     info!("HTTP server listening on {}", "localhost:12547");
     info!("submission api server ready");
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c().await.expect("failed to listen for ctrl_c");
-            info!("shutdown signal received, stopping HTTP server");
-        })
-        .await?;
+    service_utils::serve(listener, router).await?;
 
     Ok(())
 }

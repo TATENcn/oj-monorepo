@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use api_server_auth::{AuthApiServerError, config::ApiServerConfig};
 use auth::router::{AppState, jwks_router, router};
-use axum::serve;
 use sea_orm::Database;
 use tokio::{fs, net::TcpListener};
 use tracing::info;
@@ -34,12 +33,7 @@ async fn main() -> Result<(), AuthApiServerError> {
     let listener = TcpListener::bind("localhost:18938").await?;
     info!("service available");
 
-    serve(listener, router)
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c().await.expect("failed to listen for ctrl_c");
-            info!("shutdown signal received, stopping HTTP server");
-        })
-        .await?;
+    service_utils::serve(listener, router).await?;
 
     Ok(())
 }

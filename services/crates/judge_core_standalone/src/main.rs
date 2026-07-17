@@ -21,13 +21,7 @@ async fn main() {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await.unwrap();
     tracing::info!("standalone listening on 0.0.0.0:8000");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async {
-            tokio::signal::ctrl_c().await.ok();
-            tracing::info!("shutdown signal received");
-        })
-        .await
-        .unwrap();
+    service_utils::serve(listener, app).await.unwrap();
 }
 
 async fn task_handler(Json(task): Json<VerdictTask>) -> Json<SuccessResponse<VerdictResponse>> {

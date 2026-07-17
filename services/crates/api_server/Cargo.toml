@@ -17,3 +17,4 @@ axum = { workspace = true }
 uuid = { workspace = true }
 chrono = { workspace = true }
 api_server_db = { workspace = true }
+service_utils = { workspace = true }
