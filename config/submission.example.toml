@@ -1,0 +1,10 @@
+# API Server Submission
+# Copy to ./config/submission.toml and adjust as needed
+
+[database]
+url = "postgresql://postgres:postgres@localhost:5432/taten"
+
+[rabbitmq]
+url = "amqp://localhost:5672"
+exchange = "online-judge.exchange"
+submit_routing_key = "submit"

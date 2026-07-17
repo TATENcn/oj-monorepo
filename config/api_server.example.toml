@@ -1,0 +1,5 @@
+# API Server
+# Copy to ./config/api_server.toml and adjust as needed
+
+[database]
+database_url = "postgresql://postgres:postgres@localhost:5432/taten"

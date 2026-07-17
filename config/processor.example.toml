@@ -1,6 +1,9 @@
 # Submission Processor
 # Copy to ./config/processor.toml and adjust as needed
 
+[database]
+url = "postgresql://postgres:postgres@localhost:5432/taten"
+
 [judge_core]
 url = "http://localhost:8000"
 standalone = false
@@ -10,5 +13,3 @@ url = "amqp://localhost:5672"
 exchange_name = "online-judge.exchange"
 submit_queue = "submit.queue"
 submit_route = "submit"
-result_queue = "result.queue"
-result_route = "result"

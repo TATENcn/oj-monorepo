@@ -1,0 +1,11 @@
+# API Server Auth
+# Copy to ./config/api_server_auth.toml and adjust as needed
+
+[database]
+database_url = "postgresql://postgres:postgres@localhost:5432/taten"
+
+[auth]
+public_pem_filepath = "./config/public.pem"
+private_pem_filepath = "./config/private.pem"
+access_token_ttl_secs = 86400
+refresh_token_ttl_secs = 604800

@@ -1,6 +1,11 @@
+# Gateway
+# Copy to ./config/gateway.yaml and adjust as needed
+
 jwks_url: "localhost:40301"
 addr: "localhost:10294"
 upstream_timeout_secs: 30
+max_connections: 1024
+drain_timeout_secs: 60
 
 routes:
   - path: /
