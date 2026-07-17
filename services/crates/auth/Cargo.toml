@@ -10,9 +10,9 @@ sea-orm = { workspace = true, features = ["macros"] }
 uuid = { workspace = true, features = ["v7", "serde"] }
 chrono = { workspace = true }
 argon2 = "0.6.0-rc.8"
-jsonwebtoken = "10.4.0"
+jsonwebtoken = { workspace = true }
 ed25519-dalek = { version = "3.0.0", features = ["alloc", "pkcs8"] }
 serde = { workspace = true }
-base64 = "0.22.1"
+base64 = { workspace = true }
 sha2 = "0.11.0"
 pem = "3.0.6"

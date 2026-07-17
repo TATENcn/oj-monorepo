@@ -13,7 +13,7 @@ api_server_db = { workspace = true }
 uuid = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 auth = { workspace = true }
-lapin = "4.10"
+lapin = { workspace = true }
 serde_json = { workspace = true }
 judge_core_shared = { workspace = true }
 config = { workspace = true }
