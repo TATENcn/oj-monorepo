@@ -16,8 +16,8 @@ use crate::{
     hash,
     models::{
         http::{
-            AccessTokenType, Jwk, JwksResponse, TokenIntrospectionRequest, TokenIntrospectionResponse, TokenOperationErrorResponse, TokenRequest,
-            TokenResponse, TokenRevocationRequest,
+            AccessTokenType, Jwk, JwksResponse, RegisterErrorResponse, RegisterRequest, RegisterResponse, TokenIntrospectionRequest,
+            TokenIntrospectionResponse, TokenOperationErrorResponse, TokenRequest, TokenResponse, TokenRevocationRequest,
         },
         refresh_tokens, users,
     },
@@ -42,6 +42,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/revoke", post(revoke_handler))
         // POST `/introspect` [RFC 7662](https://datatracker.ietf.org/doc/html/rfc7662)
         .route("/introspect", post(introspect_handler))
+        // Custom registration
+        .route("/register", post(register_handler))
         .with_state(state)
 }
 
@@ -289,4 +291,123 @@ async fn introspect_handler(State(state): State<Arc<AppState>>, Form(body): Form
     };
 
     Json(TokenIntrospectionResponse::successful(user.username, body.token_hint))
+}
+
+type RegisterHandlerError = (StatusCode, Json<RegisterErrorResponse>);
+
+pub async fn register_handler(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RegisterRequest>,
+) -> Result<Json<RegisterResponse>, RegisterHandlerError> {
+    // Validate input
+    if request.username.trim().is_empty() || request.password.trim().is_empty() || request.email.trim().is_empty() {
+        return Err(invalid_register_request());
+    }
+    if request.password.len() < 8 {
+        return Err(invalid_register_request());
+    }
+
+    // Check for existing username
+    if users::Entity::find_by_username(&request.username)
+        .one(&state.db)
+        .await
+        .map_err(|e| {
+            error!(?e, "db error checking username");
+            register_server_error()
+        })?
+        .is_some()
+    {
+        return Err(username_taken());
+    }
+
+    // Check for existing email
+    if users::Entity::find_by_email(&request.email)
+        .one(&state.db)
+        .await
+        .map_err(|e| {
+            error!(?e, "db error checking email");
+            register_server_error()
+        })?
+        .is_some()
+    {
+        return Err(email_taken());
+    }
+
+    let password_hash = hash::hash(&request.password).map_err(|e| {
+        error!(?e, "failed to hash password");
+        register_server_error()
+    })?;
+
+    let model = users::ActiveModel {
+        username: Set(request.username.clone()),
+        email: Set(request.email.clone()),
+        password: Set(password_hash),
+        ..Default::default()
+    };
+
+    let result = match model.insert(&state.db).await {
+        Ok(user) => user,
+        Err(e) => {
+            // Handle race condition
+            if users::Entity::find_by_username(&request.username).one(&state.db).await.ok().flatten().is_some() {
+                return Err(username_taken());
+            }
+            if users::Entity::find_by_email(&request.email).one(&state.db).await.ok().flatten().is_some() {
+                return Err(email_taken());
+            }
+            error!(?e, "failed to insert user");
+            return Err(register_server_error());
+        }
+    };
+
+    let access_token = token::generate(&result.id.to_string(), TokenType::Access, &state.private_key_pem, state.access_token_ttl_secs).map_err(|e| {
+        error!(?e, user_id = %result.id, "failed to generate access token");
+        register_server_error()
+    })?;
+
+    let refresh_token = token::generate(&result.id.to_string(), TokenType::Refresh, &state.private_key_pem, state.refresh_token_ttl_secs).map_err(|e| {
+        error!(?e, user_id = %result.id, "failed to generate refresh token");
+        register_server_error()
+    })?;
+
+    // Store refresh token hash
+    let refresh_token_hash = hash::hash(&refresh_token).map_err(|e| {
+        error!(?e, user_id = %result.id, "failed to hash refresh token");
+        register_server_error()
+    })?;
+
+    let now = Utc::now();
+    refresh_tokens::ActiveModel {
+        id: Set(uuid::Uuid::now_v7()),
+        user_id: Set(result.id),
+        token: Set(refresh_token_hash),
+        created_at: Set(now),
+        expired_at: Set(now + chrono::Duration::seconds(state.refresh_token_ttl_secs as i64)),
+    }
+    .insert(&state.db)
+    .await
+    .map_err(|e| {
+        error!(?e, user_id = %result.id, "failed to store refresh token");
+        register_server_error()
+    })?;
+
+    info!(user_id = %result.id, username = %request.username, "user registered");
+
+    Ok(Json(RegisterResponse { access_token, refresh_token }))
+}
+
+fn username_taken() -> RegisterHandlerError {
+    (StatusCode::CONFLICT, Json(RegisterErrorResponse::UsernameTaken))
+}
+
+fn email_taken() -> RegisterHandlerError {
+    (StatusCode::CONFLICT, Json(RegisterErrorResponse::EmailTaken))
+}
+
+fn invalid_register_request() -> RegisterHandlerError {
+    (StatusCode::BAD_REQUEST, Json(RegisterErrorResponse::InvalidRequest))
+}
+
+fn register_server_error() -> RegisterHandlerError {
+    (StatusCode::INTERNAL_SERVER_ERROR, Json(RegisterErrorResponse::ServerError))
 }

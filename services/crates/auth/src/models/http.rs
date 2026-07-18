@@ -119,3 +119,25 @@ pub struct Jwk {
     /// Base64 URL-encoded 32-byte public key
     pub x: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegisterRequest {
+    pub username: String,
+    pub password: String,
+    pub email: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RegisterResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "error", rename_all = "snake_case")]
+pub enum RegisterErrorResponse {
+    UsernameTaken,
+    EmailTaken,
+    InvalidRequest,
+    ServerError,
+}
