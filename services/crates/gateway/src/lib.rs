@@ -6,6 +6,7 @@ use hyper_util::{client::legacy::Client, rt::TokioExecutor};
 use std::{sync::LazyLock, time::Duration};
 
 pub mod config;
+pub mod error;
 pub mod jwks;
 pub mod rate_limiter;
 pub mod router;
