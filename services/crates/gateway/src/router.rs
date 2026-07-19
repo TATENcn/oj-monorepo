@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -9,14 +10,15 @@ use tracing::{error, info};
 use crate::HTTP_CLIENT;
 use crate::config::{MatchType, RouteConfig};
 
-pub struct RouteMatch<'a> {
-    pub config: &'a RouteConfig,
+#[derive(Debug, Clone)]
+pub struct RouteMatch {
+    pub config: Arc<RouteConfig>,
 }
 
-pub fn match_route<'a>(routes: &'a [RouteConfig], request_path: &str) -> Option<RouteMatch<'a>> {
+pub fn match_route(routes: &[Arc<RouteConfig>], request_path: &str) -> Option<RouteMatch> {
     routes
         .iter()
-        .fold(None, |best: Option<((usize, bool), &RouteConfig)>, route| {
+        .fold(None, |best: Option<((usize, bool), &Arc<RouteConfig>)>, route| {
             let matches = match route.match_type {
                 MatchType::Exact => request_path == route.path,
                 MatchType::Prefix => is_prefix_match(&route.path, request_path),
@@ -32,7 +34,7 @@ pub fn match_route<'a>(routes: &'a [RouteConfig], request_path: &str) -> Option<
                 Some(prev) => Some(prev),
             }
         })
-        .map(|(_, route)| RouteMatch { config: route })
+        .map(|(_, route)| RouteMatch { config: Arc::clone(route) })
 }
 
 fn is_prefix_match(prefix: &str, path: &str) -> bool {
@@ -70,11 +72,7 @@ impl ProxyError {
 }
 
 /// Proxy an incoming request to the matched upstream
-pub async fn proxy(
-    req: Request<Incoming>,
-    route_match: &RouteMatch<'_>,
-    timeout_duration: Duration,
-) -> Result<Response<BoxBody<Bytes, hyper::Error>>, ProxyError> {
+pub async fn proxy(req: Request<Incoming>, route_match: &RouteMatch, timeout_duration: Duration) -> Result<Response<BoxBody<Bytes, hyper::Error>>, ProxyError> {
     let upstream_uri =
         build_upstream_uri(&route_match.config.upstream, req.uri().path(), req.uri().query()).map_err(|e| ProxyError::InvalidUpstream(e.to_string()))?;
 
@@ -116,7 +114,7 @@ pub async fn proxy(
     Ok(Response::from_parts(parts, body.boxed()))
 }
 
-fn build_upstream_uri(upstream: &str, path: &str, query: Option<&str>) -> Result<Uri, hyper::http::uri::InvalidUri> {
+pub fn build_upstream_uri(upstream: &str, path: &str, query: Option<&str>) -> Result<Uri, hyper::http::uri::InvalidUri> {
     // Remove trailing slash from upstream uri
     let mut uri = upstream.trim_end_matches('/').to_string();
     uri.push_str(path);
