@@ -146,10 +146,10 @@ pub struct GatewayService<P> {
 }
 
 impl<P> GatewayService<P> {
-    pub fn new(pipeline: P, routes: Vec<RouteConfig>, jwks: JwksManager, rate_limiter: Arc<dyn RateLimiter>) -> Self {
+    pub fn new(pipeline: P, routes: Arc<Vec<Arc<RouteConfig>>>, jwks: JwksManager, rate_limiter: Arc<dyn RateLimiter>) -> Self {
         Self {
             pipeline,
-            routes: Arc::new(routes.into_iter().map(Arc::new).collect()),
+            routes: routes,
             jwks: Arc::new(jwks),
             rate_limiter,
         }

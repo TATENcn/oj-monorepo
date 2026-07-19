@@ -4,8 +4,10 @@ use bytes::Bytes;
 use gateway::{
     HTTP_CLIENT,
     config::GatewayConfig,
+    config::RouteConfig,
     jwks::JwksManager,
     rate_limiter::memory::InMemoryRateLimiter,
+    router::RouteLayer,
     service::{GatewayService, HttpBody, ProxyService},
 };
 use http_body_util::Full;
@@ -17,6 +19,7 @@ use tokio::io;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::Semaphore;
 use tokio::task::JoinSet;
+use tower::Layer;
 use tracing::{error, info, warn};
 
 #[tokio::main]
@@ -31,9 +34,11 @@ async fn main() -> Result<(), MainError> {
     // REVIEW: Make more choices, but in-memory now
     let rate_limiter = Arc::new(InMemoryRateLimiter::new(Duration::from_secs(300)));
     let connection_semaphore = Arc::new(Semaphore::new(config.max_connections));
+    let pipeline_routes: Arc<Vec<Arc<RouteConfig>>> = Arc::new(config.routes.iter().map(|r| Arc::new(r.clone())).collect());
 
     let proxy = ProxyService::new(HTTP_CLIENT.clone(), Duration::from_secs(config.upstream_timeout_secs));
-    let gateway = GatewayService::new(proxy, config.routes, jwks, rate_limiter);
+    let pipeline = RouteLayer::new(pipeline_routes.clone()).layer(proxy);
+    let gateway = GatewayService::new(pipeline, pipeline_routes, jwks, rate_limiter);
     let service = Arc::new(gateway);
 
     info!(addr = %config.addr, max_connections = config.max_connections, "gateway listening");
