@@ -162,13 +162,13 @@ impl Verdict for Cpp {
 
         // Write stdin input
         // Child may exit before all input is consumed, causing EPIPE
-        if let Some(mut stdin) = child.stdin.take() {
-            if let Err(e) = stdin.write_all(case.input.as_bytes()).await {
-                if e.kind() != io::ErrorKind::BrokenPipe {
-                    return Err(e.into());
-                }
-            }
+        if let Some(mut stdin) = child.stdin.take()
+            && let Err(e) = stdin.write_all(case.input.as_bytes()).await
+            && e.kind() != io::ErrorKind::BrokenPipe
+        {
+            return Err(e.into());
         }
+
         trace!(input = truncate_str(&case.input, 1024), "stdin written");
 
         let output_limit = limit.output_bytes as usize;

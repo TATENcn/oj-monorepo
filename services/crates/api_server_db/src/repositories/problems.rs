@@ -51,10 +51,10 @@ impl ProblemsRepo {
         };
 
         // Early returns
-        if let Some(ref ids) = tag_filtered_ids {
-            if ids.is_empty() {
-                return Ok(http::ListProblemResponse { problems: vec![], total: 0 });
-            }
+        if let Some(ref ids) = tag_filtered_ids
+            && ids.is_empty()
+        {
+            return Ok(http::ListProblemResponse { problems: vec![], total: 0 });
         }
 
         // Build main problem query
