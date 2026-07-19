@@ -3,12 +3,11 @@ use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
 use bytes::Bytes;
 use gateway::{
     HTTP_CLIENT,
-    config::GatewayConfig,
-    config::RouteConfig,
+    config::{GatewayConfig, RouteConfig},
     jwks::JwksManager,
+    layers::{auth::AuthLayer, health::HealthLayer, rate_limit::RateLimitLayer, route::RouteLayer},
     rate_limiter::memory::InMemoryRateLimiter,
-    router::RouteLayer,
-    service::{GatewayService, HttpBody, ProxyService},
+    services::{GatewayService, HttpBody, ProxyService},
 };
 use http_body_util::Full;
 use hyper::service::Service;
@@ -30,6 +29,7 @@ async fn main() -> Result<(), MainError> {
     let listener = TcpListener::bind(&config.addr).await?;
     let mut jwks = JwksManager::new(config.jwks_url.clone(), Duration::from_secs(60)).await?;
     jwks.start_background_refresh();
+    let jwks = Arc::new(jwks);
 
     // REVIEW: Make more choices, but in-memory now
     let rate_limiter = Arc::new(InMemoryRateLimiter::new(Duration::from_secs(300)));
@@ -37,8 +37,9 @@ async fn main() -> Result<(), MainError> {
     let pipeline_routes: Arc<Vec<Arc<RouteConfig>>> = Arc::new(config.routes.iter().map(|r| Arc::new(r.clone())).collect());
 
     let proxy = ProxyService::new(HTTP_CLIENT.clone(), Duration::from_secs(config.upstream_timeout_secs));
-    let pipeline = RouteLayer::new(pipeline_routes.clone()).layer(proxy);
-    let gateway = GatewayService::new(pipeline, pipeline_routes, jwks, rate_limiter);
+    let pipeline = HealthLayer::new(jwks.clone())
+        .layer(RouteLayer::new(pipeline_routes.clone()).layer(RateLimitLayer::new(rate_limiter).layer(AuthLayer::new(jwks.clone()).layer(proxy))));
+    let gateway = GatewayService::new(pipeline);
     let service = Arc::new(gateway);
 
     info!(addr = %config.addr, max_connections = config.max_connections, "gateway listening");
