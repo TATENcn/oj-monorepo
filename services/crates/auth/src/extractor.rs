@@ -116,11 +116,11 @@ pub enum AuthError {
     BadSubject,
 }
 
-impl Into<StatusCode> for AuthError {
-    fn into(self) -> StatusCode {
-        match self {
-            Self::StateNotConfigured | Self::BadSubject => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::MissingHeader | Self::InvalidHeader | Self::InvalidToken => StatusCode::UNAUTHORIZED,
+impl From<AuthError> for StatusCode {
+    fn from(val: AuthError) -> Self {
+        match val {
+            AuthError::StateNotConfigured | AuthError::BadSubject => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError::MissingHeader | AuthError::InvalidHeader | AuthError::InvalidToken => StatusCode::UNAUTHORIZED,
         }
     }
 }
