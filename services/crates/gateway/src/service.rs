@@ -1,20 +1,24 @@
-use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
+use std::{fmt::Debug, future::Future, net::SocketAddr, pin::Pin, sync::Arc, task::Context, task::Poll, time::Duration};
 
 use bytes::Bytes;
+use futures::future;
 use http_body_util::{BodyExt, Full, combinators::BoxBody};
 use hyper::{Request, Response, StatusCode, body::Incoming, header};
 use serde::Serialize;
+use tower::Service;
 use tracing::error;
 use uuid::Uuid;
 
 use crate::{
     config::{AuthenticationLevel, RouteConfig},
+    error::GatewayError,
     jwks::JwksManager,
     rate_limiter::{self, RateLimiter},
-    router::{self, ProxyError},
+    router::{self, RouteMatch},
 };
 
-type AuthError = Box<Response<BoxBody<Bytes, hyper::Error>>>;
+pub type HttpBody = BoxBody<Bytes, hyper::Error>;
+type AuthError = Box<Response<HttpBody>>;
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case", tag = "status")]
@@ -46,44 +50,128 @@ impl From<Health> for Bytes {
     }
 }
 
-pub struct ProxyService {
-    routes: Arc<Vec<RouteConfig>>,
+// Proxy service
+pub struct ProxyService<S> {
+    client: S,
     timeout: Duration,
+}
+
+impl<S> ProxyService<S> {
+    pub fn new(client: S, timeout: Duration) -> Self {
+        Self { client, timeout }
+    }
+}
+
+impl<S> Service<Request<HttpBody>> for ProxyService<S>
+where
+    S: Service<Request<HttpBody>, Response = Response<Incoming>> + Clone + Send + 'static,
+    S::Error: std::error::Error + Send + Sync + 'static,
+    S::Future: Send,
+{
+    type Response = Response<HttpBody>;
+    type Error = GatewayError;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
+
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+        self.client.poll_ready(cx).map_err(|e| GatewayError::Upstream(e.to_string()))
+    }
+
+    fn call(&mut self, req: Request<HttpBody>) -> Self::Future {
+        let route_match = match req.extensions().get::<RouteMatch>() {
+            Some(m) => m.clone(),
+            None => return Box::pin(async { Err(GatewayError::RouteNotFound) }),
+        };
+
+        let upstream_uri = match router::build_upstream_uri(&route_match.config.upstream, req.uri().path(), req.uri().query()) {
+            Ok(uri) => uri,
+            Err(e) => {
+                let msg = e.to_string();
+                return Box::pin(async { Err(GatewayError::Upstream(msg)) });
+            }
+        };
+
+        let (mut parts, body) = req.into_parts();
+        parts.uri = upstream_uri.clone();
+
+        // Replace Host header to match the upstream
+        if let Some(authority) = parts.uri.authority() {
+            if let Ok(host_val) = hyper::header::HeaderValue::from_str(authority.as_str()) {
+                parts.headers.insert(hyper::header::HOST, host_val);
+            } else {
+                return Box::pin(async { Err(GatewayError::Upstream("invalid upstream authority".into())) });
+            }
+        }
+
+        let upstream_req = Request::from_parts(parts, body);
+
+        let timeout = self.timeout;
+        let mut client = self.client.clone();
+
+        Box::pin(async move {
+            let res = tokio::time::timeout(timeout, async {
+                future::poll_fn(|cx| client.poll_ready(cx)).await?;
+                client.call(upstream_req).await
+            })
+            .await
+            .map_err(|_| GatewayError::Timeout)?
+            .map_err(|e| GatewayError::Upstream(e.to_string()))?;
+
+            let (mut parts, body) = res.into_parts();
+            parts.headers.remove(hyper::header::CONTENT_LENGTH);
+            Ok(Response::from_parts(parts, body.boxed()))
+        })
+    }
+}
+
+impl<S> Debug for ProxyService<S> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProxyService").field("timeout", &self.timeout).finish_non_exhaustive()
+    }
+}
+
+impl<S: Clone> Clone for ProxyService<S> {
+    fn clone(&self) -> Self {
+        Self {
+            client: self.client.clone(),
+            timeout: self.timeout,
+        }
+    }
+}
+
+pub struct GatewayService<P> {
+    pipeline: P,
+    routes: Arc<Vec<Arc<RouteConfig>>>,
     jwks: Arc<JwksManager>,
     rate_limiter: Arc<dyn RateLimiter>,
 }
 
-impl ProxyService {
-    pub fn new(routes: Vec<RouteConfig>, timeout: Duration, jwks: JwksManager, rate_limiter: Arc<dyn RateLimiter>) -> Self {
+impl<P> GatewayService<P> {
+    pub fn new(pipeline: P, routes: Vec<RouteConfig>, jwks: JwksManager, rate_limiter: Arc<dyn RateLimiter>) -> Self {
         Self {
-            routes: Arc::new(routes),
-            timeout,
+            pipeline,
+            routes: Arc::new(routes.into_iter().map(Arc::new).collect()),
             jwks: Arc::new(jwks),
             rate_limiter,
         }
     }
 }
 
-async fn handle_request(
-    req: Request<Incoming>,
-    matched: router::RouteMatch<'_>,
-    timeout: Duration,
-) -> Result<Response<BoxBody<Bytes, hyper::Error>>, ProxyError> {
-    router::proxy(req, &matched, timeout).await
-}
-
-fn into_boxed_body(bytes: Bytes) -> BoxBody<Bytes, hyper::Error> {
+fn into_boxed_body(bytes: Bytes) -> HttpBody {
     Full::new(bytes).map_err(|e: std::convert::Infallible| match e {}).boxed()
 }
 
-impl hyper::service::Service<Request<Incoming>> for ProxyService {
-    type Response = Response<BoxBody<Bytes, hyper::Error>>;
-    type Error = hyper::http::Error;
+impl<P> hyper::service::Service<Request<Incoming>> for GatewayService<P>
+where
+    P: Service<Request<HttpBody>, Response = Response<HttpBody>, Error = GatewayError> + Clone + Send + 'static,
+    P::Future: Send,
+{
+    type Response = Response<HttpBody>;
+    type Error = std::convert::Infallible;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn call(&self, req: Request<Incoming>) -> Self::Future {
         let routes = self.routes.clone();
-        let timeout = self.timeout;
+        let mut pipeline = self.pipeline.clone();
         let jwks = self.jwks.clone();
         let rate_limiter = self.rate_limiter.clone();
 
@@ -101,7 +189,8 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
                     .expect("building healthcheck response"));
             }
 
-            let matched = match router::match_route(&routes, path) {
+            // Route match
+            let matched = match router::match_route(&routes, &path) {
                 Some(m) => m,
                 None => return Ok(error_response(StatusCode::NOT_FOUND, "no route matched")),
             };
@@ -121,19 +210,53 @@ impl hyper::service::Service<Request<Incoming>> for ProxyService {
                 }
             }
 
+            // Auth
             let req = match apply_auth(req, &matched.config.auth, &jwks) {
                 Ok(req) => req,
                 Err(resp) => return Ok(*resp),
             };
 
-            match handle_request(req, matched, timeout).await {
+            // Collect body for tower pipeline
+            let (parts, body) = req.into_parts();
+            let collected = match body.collect().await {
+                Ok(c) => c,
+                Err(e) => {
+                    error!(?e, "failed to collect request body");
+                    return Ok(error_response(StatusCode::BAD_REQUEST, "failed to read request body"));
+                }
+            };
+            let body_bytes: HttpBody = Full::new(collected.to_bytes()).map_err(|e: std::convert::Infallible| match e {}).boxed();
+
+            let mut pipeline_req = Request::from_parts(parts, body_bytes);
+            pipeline_req.extensions_mut().insert(matched);
+
+            match future::poll_fn(|cx| pipeline.poll_ready(cx)).await {
+                Ok(()) => {}
+                Err(e) => {
+                    error!(?e, "pipeline not ready");
+                    return Ok(error_response(e.status_code(), &e.to_string()));
+                }
+            }
+
+            match pipeline.call(pipeline_req).await {
                 Ok(resp) => Ok(resp),
                 Err(e) => {
-                    error!(?e, "proxy error");
+                    error!(?e, "pipeline error");
                     Ok(error_response(e.status_code(), &e.to_string()))
                 }
             }
         })
+    }
+}
+
+impl<P: Clone> Clone for GatewayService<P> {
+    fn clone(&self) -> Self {
+        Self {
+            pipeline: self.pipeline.clone(),
+            routes: self.routes.clone(),
+            jwks: self.jwks.clone(),
+            rate_limiter: self.rate_limiter.clone(),
+        }
     }
 }
 
@@ -143,7 +266,7 @@ fn parse_user_id(sub: &str) -> Result<hyper::header::HeaderValue, AuthError> {
         .map_err(|_| error_response_boxed(StatusCode::UNAUTHORIZED, "invalid token subject"))
 }
 
-fn error_response(status: StatusCode, msg: &str) -> Response<BoxBody<Bytes, hyper::Error>> {
+fn error_response(status: StatusCode, msg: &str) -> Response<HttpBody> {
     Response::builder()
         .status(status)
         .body(into_boxed_body(Bytes::copy_from_slice(msg.as_bytes())))

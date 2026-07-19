@@ -1,8 +1,14 @@
 use std::{future::Future, net::SocketAddr, pin::Pin, sync::Arc, time::Duration};
 
 use bytes::Bytes;
-use gateway::{config::GatewayConfig, jwks::JwksManager, rate_limiter::memory::InMemoryRateLimiter, service::ProxyService};
-use http_body_util::{Full, combinators::BoxBody};
+use gateway::{
+    HTTP_CLIENT,
+    config::GatewayConfig,
+    jwks::JwksManager,
+    rate_limiter::memory::InMemoryRateLimiter,
+    service::{GatewayService, HttpBody, ProxyService},
+};
+use http_body_util::Full;
 use hyper::service::Service;
 use hyper::{Request, Response, StatusCode, body::Incoming};
 use hyper_util::rt::{TokioExecutor, TokioIo};
@@ -14,7 +20,7 @@ use tokio::task::JoinSet;
 use tracing::{error, info, warn};
 
 #[tokio::main]
-async fn main() -> Result<(), GatewayError> {
+async fn main() -> Result<(), MainError> {
     tracing_subscriber::fmt::init();
 
     let config = GatewayConfig::load()?;
@@ -26,12 +32,9 @@ async fn main() -> Result<(), GatewayError> {
     let rate_limiter = Arc::new(InMemoryRateLimiter::new(Duration::from_secs(300)));
     let connection_semaphore = Arc::new(Semaphore::new(config.max_connections));
 
-    let service = Arc::new(ProxyService::new(
-        config.routes,
-        Duration::from_secs(config.upstream_timeout_secs),
-        jwks,
-        rate_limiter,
-    ));
+    let proxy = ProxyService::new(HTTP_CLIENT.clone(), Duration::from_secs(config.upstream_timeout_secs));
+    let gateway = GatewayService::new(proxy, config.routes, jwks, rate_limiter);
+    let service = Arc::new(gateway);
 
     info!(addr = %config.addr, max_connections = config.max_connections, "gateway listening");
 
@@ -84,20 +87,24 @@ async fn main() -> Result<(), GatewayError> {
     Ok(())
 }
 
-/// Thin wrapper that injects the TCP peer address into request extensions before delegating to [`ProxyService`]
-struct ConnectionService {
-    inner: Arc<ProxyService>,
+/// Thin wrapper that injects the TCP peer address into request extensions before delegating to the inner service
+struct ConnectionService<S> {
+    inner: Arc<S>,
     peer_addr: SocketAddr,
 }
 
-impl Service<Request<Incoming>> for ConnectionService {
-    type Response = Response<BoxBody<bytes::Bytes, hyper::Error>>;
-    type Error = hyper::http::Error;
+impl<S> Service<Request<Incoming>> for ConnectionService<S>
+where
+    S: Service<Request<Incoming>, Response = Response<HttpBody>, Error = std::convert::Infallible> + Send + Sync + 'static,
+    S::Future: Send,
+{
+    type Response = Response<HttpBody>;
+    type Error = S::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     fn call(&self, mut req: Request<Incoming>) -> Self::Future {
         req.extensions_mut().insert(self.peer_addr);
-        self.inner.call(req)
+        Box::pin(self.inner.call(req))
     }
 }
 
@@ -115,7 +122,11 @@ async fn send_503(stream: TcpStream) {
     let _ = hyper::server::conn::http1::Builder::new().serve_connection(TokioIo::new(stream), svc).await;
 }
 
-async fn handle_connection(stream: TcpStream, service: Arc<ProxyService>) {
+async fn handle_connection<S>(stream: TcpStream, service: Arc<S>)
+where
+    S: Service<Request<Incoming>, Response = Response<HttpBody>, Error = std::convert::Infallible> + Send + Sync + 'static,
+    S::Future: Send,
+{
     let peer_addr = match stream.peer_addr() {
         Ok(addr) => addr,
         Err(e) => {
@@ -132,7 +143,7 @@ async fn handle_connection(stream: TcpStream, service: Arc<ProxyService>) {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum GatewayError {
+pub enum MainError {
     #[error(transparent)]
     Config(#[from] gateway::config::GatewayConfigError),
     #[error(transparent)]

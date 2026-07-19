@@ -22,3 +22,5 @@ serde_json = { workspace = true }
 governor = "0.10.4"
 moka = { version = "0.12.15", features = ["sync"] }
 uuid = { workspace = true }
+tower = "0.5.2"
+futures = "0.3.31"
