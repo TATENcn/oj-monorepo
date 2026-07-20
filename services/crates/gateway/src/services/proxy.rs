@@ -59,12 +59,12 @@ where
         let (mut parts, body) = req.into_parts();
         parts.uri = upstream_uri.clone();
 
-        if let Some(authority) = parts.uri.authority() {
-            if let Ok(host_val) = hyper::header::HeaderValue::from_str(authority.as_str()) {
-                parts.headers.insert(hyper::header::HOST, host_val);
-            } else {
-                return Box::pin(async { Err(GatewayError::Upstream("invalid upstream authority".into())) });
-            }
+        if let Some(authority) = parts.uri.authority()
+            && let Ok(host_val) = hyper::header::HeaderValue::from_str(authority.as_str())
+        {
+            parts.headers.insert(hyper::header::HOST, host_val);
+        } else {
+            return Box::pin(async { Err(GatewayError::Upstream("invalid upstream authority".into())) });
         }
 
         let upstream_req = Request::from_parts(parts, body);
