@@ -1,0 +1,27 @@
+FROM rust:1.96-alpine AS chef
+WORKDIR /build
+RUN cargo install cargo-chef
+
+FROM chef AS planner
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+RUN apk add --no-cache \
+    musl-dev \
+    openssl-dev
+
+COPY --from=planner /build/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json --bin api_server_auth
+
+COPY . .
+RUN cargo build --release --bin api_server_auth
+
+FROM alpine:3.23.4
+
+RUN apk add --no-cache ca-certificates && \
+    rm -rf /var/cache/apk/*
+
+COPY --from=builder /build/target/release/api_server_auth /usr/local/bin/api_server_auth
+
+ENTRYPOINT ["/usr/local/bin/api_server_auth"]
